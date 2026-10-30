@@ -11,11 +11,17 @@ export default function SiteHeader() {
       }}
     >
       <Logo />
-      <nav className="flex items-center gap-6 text-sm font-semibold uppercase tracking-wide text-white [text-shadow:0_1px_3px_rgb(0_0_0_/_0.35)]">
-        <Link href="/creator" className="hover:opacity-80">
+      <nav className="flex items-center gap-3 text-sm font-semibold uppercase tracking-wide">
+        <Link
+          href="/creator"
+          className="rounded-full bg-paper px-4 py-2 text-accent shadow-sm transition-opacity hover:opacity-80"
+        >
           Creator
         </Link>
-        <Link href="/brand" className="hover:opacity-80">
+        <Link
+          href="/brand"
+          className="rounded-full bg-paper px-4 py-2 text-accent shadow-sm transition-opacity hover:opacity-80"
+        >
           Brand
         </Link>
       </nav>
