@@ -32,9 +32,14 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.local.example
 
 # vercel
 .vercel
+
+# test fixtures / local test output (personal photos, never commit)
+/scripts/fixtures/
+/scripts/test-vto-result.jpg
 
 # typescript
 *.tsbuildinfo
