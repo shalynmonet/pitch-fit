@@ -7,7 +7,7 @@ export default function SiteHeader() {
       className="flex items-center justify-between px-6 py-4 sm:px-10"
       style={{
         backgroundImage: "url('/images/houndstooth.webp')",
-        backgroundSize: "68px 68px",
+        backgroundRepeat: "repeat",
       }}
     >
       <Logo />
