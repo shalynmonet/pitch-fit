@@ -57,7 +57,7 @@ export async function drawWatermarkedImage(
   const margin = Math.max(12, canvas.width * 0.02);
 
   ctx.globalAlpha = 0.92;
-  ctx.fillStyle = "#c1121f";
+  ctx.fillStyle = "#e07f3a";
   ctx.fillRect(margin, canvas.height - margin - badgeHeight, badgeWidth, badgeHeight);
 
   ctx.globalAlpha = 1;
