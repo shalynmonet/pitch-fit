@@ -3,26 +3,22 @@ import Logo from "./Logo";
 
 export default function SiteHeader() {
   return (
-    <>
-      <div
-        className="h-2.5 w-full sm:h-3"
-        style={{
-          backgroundImage: "url('/images/houndstooth.webp')",
-          backgroundSize: "68px 68px",
-        }}
-        aria-hidden="true"
-      />
-      <header className="flex items-center justify-between border-b border-line px-6 py-5 sm:px-10">
-        <Logo />
-        <nav className="flex items-center gap-6 text-sm font-medium uppercase tracking-wide text-ink-soft">
-          <Link href="/creator" className="hover:text-ink">
-            Creator
-          </Link>
-          <Link href="/brand" className="hover:text-ink">
-            Brand
-          </Link>
-        </nav>
-      </header>
-    </>
+    <header
+      className="flex items-center justify-between px-6 py-4 sm:px-10"
+      style={{
+        backgroundImage: "url('/images/houndstooth.webp')",
+        backgroundSize: "68px 68px",
+      }}
+    >
+      <Logo />
+      <nav className="flex items-center gap-6 text-sm font-semibold uppercase tracking-wide text-white [text-shadow:0_1px_3px_rgb(0_0_0_/_0.35)]">
+        <Link href="/creator" className="hover:opacity-80">
+          Creator
+        </Link>
+        <Link href="/brand" className="hover:opacity-80">
+          Brand
+        </Link>
+      </nav>
+    </header>
   );
 }

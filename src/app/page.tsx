@@ -5,15 +5,6 @@ export default function Home() {
   return (
     <div className="flex flex-1 flex-col">
       <SiteHeader />
-      <div
-        className="h-20 w-full sm:h-28"
-        style={{
-          backgroundImage: "url('/images/houndstooth.webp')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-        aria-hidden="true"
-      />
       <main className="flex flex-1 flex-col items-center justify-center px-6 py-20 text-center sm:px-10">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-accent">
           Concept mocks for UGC pitches
