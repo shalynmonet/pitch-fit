@@ -16,6 +16,10 @@ const METRIC_LABELS: Record<string, string> = {
   dark_circle_v2: "Brightness",
 };
 
+export const FOCUS_METRICS: { type: string; label: string }[] = Object.entries(METRIC_LABELS).map(
+  ([type, label]) => ({ type, label })
+);
+
 export interface SkinStrength {
   type: string;
   label: string;

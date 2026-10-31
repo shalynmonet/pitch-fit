@@ -32,7 +32,10 @@ export async function POST(req: NextRequest) {
       contentType: selfieFile.type || "image/jpeg",
     });
 
-    return NextResponse.json({ strengths: topSkinStrengths(scores) });
+    return NextResponse.json({
+      strengths: topSkinStrengths(scores),
+      scores: scores.map((s) => ({ type: s.type, uiScore: s.uiScore })),
+    });
   } catch (err) {
     if (err instanceof YouCamError) {
       const status = err.code === "timeout" ? 504 : 502;
