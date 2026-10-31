@@ -6,8 +6,11 @@ import ImageDropzone from "@/components/ImageDropzone";
 import LoadingNote from "@/components/LoadingNote";
 import PitchBoard from "@/components/PitchBoard";
 import { NICHES, GARMENT_CATEGORIES, type Niche, type GarmentCategory, type Concept } from "@/lib/types";
+import type { ShadeMatch } from "@/lib/shade";
 
 type Status = "idle" | "loading" | "error" | "done";
+
+const SKIN_AI_DISCLAIMER = "Cosmetic skin analysis, not medical advice. Results vary with lighting.";
 
 export default function CreatorPage() {
   const [selfie, setSelfie] = useState<File | null>(null);
@@ -16,11 +19,14 @@ export default function CreatorPage() {
   const [productDescription, setProductDescription] = useState("");
   const [niche, setNiche] = useState<Niche>("travel");
   const [garmentCategory, setGarmentCategory] = useState<GarmentCategory>("upper_body");
+  const [beautyPitch, setBeautyPitch] = useState(false);
 
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [concept, setConcept] = useState<Concept | null>(null);
+  const [shadeMatch, setShadeMatch] = useState<ShadeMatch | null>(null);
+  const [shadeNote, setShadeNote] = useState<string | null>(null);
 
   const canGenerate = selfie && garment && productName.trim() && productDescription.trim();
 
@@ -28,6 +34,8 @@ export default function CreatorPage() {
     if (!selfie || !garment) return;
     setStatus("loading");
     setError(null);
+    setShadeMatch(null);
+    setShadeNote(null);
 
     try {
       const vtoForm = new FormData();
@@ -35,13 +43,19 @@ export default function CreatorPage() {
       vtoForm.set("garment", garment);
       vtoForm.set("garmentCategory", garmentCategory);
 
-      const [vtoRes, conceptRes] = await Promise.all([
+      const skinToneForm = new FormData();
+      skinToneForm.set("selfie", selfie);
+
+      const [vtoRes, conceptRes, skinToneRes] = await Promise.all([
         fetch("/api/vto", { method: "POST", body: vtoForm }),
         fetch("/api/concept", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ productName, productDescription, niche }),
         }),
+        beautyPitch
+          ? fetch("/api/skin-tone", { method: "POST", body: skinToneForm })
+          : Promise.resolve(null),
       ]);
 
       const vtoJson = await vtoRes.json();
@@ -56,6 +70,20 @@ export default function CreatorPage() {
 
       setResultImage(vtoJson.resultDataUrl);
       setConcept(conceptJson);
+
+      if (beautyPitch && skinToneRes) {
+        if (skinToneRes.ok) {
+          const skinToneJson = await skinToneRes.json();
+          setShadeMatch(skinToneJson.shadeMatch ?? null);
+          if (!skinToneJson.shadeMatch) {
+            setShadeNote("Couldn't detect a shade match for this photo.");
+          }
+        } else {
+          const skinToneJson = await skinToneRes.json().catch(() => ({}));
+          setShadeNote(friendlySkinError(skinToneJson));
+        }
+      }
+
       setStatus("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
@@ -68,6 +96,8 @@ export default function CreatorPage() {
     setError(null);
     setResultImage(null);
     setConcept(null);
+    setShadeMatch(null);
+    setShadeNote(null);
   }
 
   return (
@@ -89,7 +119,13 @@ export default function CreatorPage() {
 
         {status === "done" && resultImage && concept && (
           <div className="mt-10 flex flex-col gap-6">
-            <PitchBoard resultImageSrc={resultImage} concept={concept} creatorLabel={productName} />
+            <PitchBoard
+              resultImageSrc={resultImage}
+              concept={concept}
+              creatorLabel={productName}
+              shadeMatch={shadeMatch}
+              shadeNote={shadeNote}
+            />
             <button
               type="button"
               onClick={reset}
@@ -173,6 +209,34 @@ export default function CreatorPage() {
               </div>
             </label>
 
+            <div className="border border-line bg-white p-4">
+              <label className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={beautyPitch}
+                  onChange={(e) => setBeautyPitch(e.target.checked)}
+                  className="mt-1 h-4 w-4 accent-accent"
+                />
+                <span>
+                  <span className="block text-sm font-medium uppercase tracking-wide text-ink">
+                    Beauty pitch
+                  </span>
+                  <span className="mt-1 block text-sm text-ink-soft">
+                    Also scan your selfie for a Shade Match line you can use in your pitch.
+                  </span>
+                </span>
+              </label>
+              {beautyPitch && (
+                <div className="mt-3 border-t border-line pt-3 text-xs text-ink-soft">
+                  <p>
+                    For the most accurate scan: face a window or soft light source, and skip
+                    filters.
+                  </p>
+                  <p className="mt-1">{SKIN_AI_DISCLAIMER}</p>
+                </div>
+              )}
+            </div>
+
             {error && (
               <p className="border border-accent/30 bg-accent/5 px-4 py-3 text-sm text-accent">
                 {error}
@@ -212,4 +276,21 @@ function friendlyVtoError(json: { error?: string; code?: string }): string {
     return "We're out of YouCam credits for now. Please try again later.";
   }
   return json.error ?? "Couldn't generate the try-on. Please try again.";
+}
+
+function friendlySkinError(json: { error?: string; code?: string }): string {
+  const code = json.code ?? "";
+  if (code === "timeout") {
+    return "Shade Match took longer than expected, so we skipped it this time.";
+  }
+  if (code.startsWith("error_face_angle")) {
+    return "Couldn't get a clean Shade Match — try a photo facing the camera directly.";
+  }
+  if (code === "error_src_face_too_small") {
+    return "Couldn't get a clean Shade Match — try a closer, face-forward photo.";
+  }
+  if (code === "CreditInsufficiency") {
+    return "We're out of YouCam credits for Shade Match right now.";
+  }
+  return "Couldn't get a Shade Match for this photo, but your concept mock is ready.";
 }

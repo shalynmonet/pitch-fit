@@ -103,6 +103,69 @@ export async function pollClothTask(
   throw new YouCamError("VTO task timed out", "timeout");
 }
 
+export interface SkinToneResult {
+  skinColorHex: string | null;
+  eyeColorHex: string | null;
+  lipColorHex: string | null;
+  eyebrowColorHex: string | null;
+  hairColorHex: string | null;
+  eyeColorName: string | null;
+  hairColorName: string | null;
+}
+
+export async function createSkinToneTask(srcFileId: string): Promise<string> {
+  const res = await fetch(`${BASE_URL}/s2s/v2.0/task/skin-tone-analysis`, {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ src_file_id: srcFileId }),
+  });
+  const json = await parseJsonOrThrow(res, "YouCam skin tone task creation");
+  return json.data.task_id;
+}
+
+export async function pollSkinToneTask(
+  taskId: string,
+  { timeoutMs = 45000, intervalMs = 3000 }: { timeoutMs?: number; intervalMs?: number } = {}
+): Promise<SkinToneResult> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const res = await fetch(`${BASE_URL}/s2s/v2.0/task/skin-tone-analysis/${taskId}`, {
+      headers: authHeaders({ "Content-Type": "application/json" }),
+    });
+    const json = await parseJsonOrThrow(res, "YouCam skin tone poll");
+    const status = json.data.task_status;
+
+    if (status === "success") {
+      const raw = json.data.results?.color ?? {};
+      return {
+        skinColorHex: raw.skin_color ?? null,
+        eyeColorHex: raw.eye_color ?? null,
+        lipColorHex: raw.lip_color ?? null,
+        eyebrowColorHex: raw.eyebrow_color ?? null,
+        hairColorHex: raw.hair_color ?? null,
+        eyeColorName: raw.eye_color_name ?? null,
+        hairColorName: raw.hair_color_name ?? null,
+      };
+    }
+    if (status === "error") {
+      throw new YouCamError(json.data.error_message ?? "Skin tone analysis failed", json.data.error);
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new YouCamError("Skin tone analysis timed out", "timeout");
+}
+
+/** Full pipeline: upload a selfie and run AI Facial Color Tones Analyzer on it. */
+export async function runSkinToneAnalysis(selfie: {
+  bytes: Buffer;
+  fileName: string;
+  contentType: string;
+}): Promise<SkinToneResult> {
+  const fileId = await uploadImage(selfie.bytes, selfie.fileName, selfie.contentType);
+  const taskId = await createSkinToneTask(fileId);
+  return pollSkinToneTask(taskId);
+}
+
 /** Full pipeline: upload selfie + garment, run try-on, return a data: URL of the result. */
 export async function runClothVto(
   selfie: { bytes: Buffer; fileName: string; contentType: string },
