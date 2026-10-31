@@ -29,5 +29,5 @@ export const GARMENT_CATEGORIES: { value: GarmentCategory; label: string }[] = [
   { value: "full_body", label: "Full outfit / dress" },
   { value: "outer", label: "Jacket / outerwear" },
   { value: "shoes", label: "Shoes" },
-  { value: "auto", label: "Not sure — auto-detect" },
+  { value: "auto", label: "Not sure (auto-detect)" },
 ];

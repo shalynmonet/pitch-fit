@@ -41,10 +41,10 @@ export default function PitchBoard({
 
     const footerLines: FooterLine[] = [];
     if (skinStrengths && skinStrengths.length > 0) {
-      footerLines.push({ text: `Skin Strengths — ${skinStrengths.map((s) => s.label).join(", ")}` });
+      footerLines.push({ text: `Skin Strengths: ${skinStrengths.map((s) => s.label).join(", ")}` });
     }
     if (shadeMatch) {
-      footerLines.push({ text: `Shade Match — ${shadeMatch.pitchLine}` });
+      footerLines.push({ text: `Shade Match: ${shadeMatch.label}` });
     }
     if (footerLines.length > 0) {
       footerLines.push({ text: SKIN_AI_DISCLAIMER, muted: true });

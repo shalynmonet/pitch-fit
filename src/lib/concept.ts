@@ -39,7 +39,7 @@ Product name: ${productName}
 Product description: ${productDescription}
 Creator niche: ${niche}
 
-Write a pitch concept for a brand partnership. The creator has NOT shot any content yet — this is a concept pitch, not finished content. Make the creator's personal connection to the product in their niche (${niche}) explicit and specific, not generic.${strengthsBlock}
+Write a pitch concept for a brand partnership. The creator has NOT shot any content yet; this is a concept pitch, not finished content. Make the creator's personal connection to the product in their niche (${niche}) explicit and specific, not generic. Do not use em dashes anywhere in the response; use commas, periods, or parentheses instead.${strengthsBlock}
 
 Return:
 - hooks: exactly 3 short, scroll-stopping opening lines/hooks for a short-form video, tailored to the "${niche}" niche

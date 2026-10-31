@@ -144,7 +144,7 @@ export default function BrandPage() {
         <h1 className="font-serif text-3xl sm:text-4xl">Brand preview</h1>
         <p className="mt-2 max-w-xl text-ink-soft">
           Upload one product and up to three creator photos to preview how each creator looks
-          wearing it — before you reach out.
+          wearing it, before you reach out.
         </p>
 
         {results && !running && (
@@ -308,10 +308,10 @@ function friendlySkinApiError(json: { error?: string; code?: string }, feature: 
     return `${feature} took longer than expected, so we skipped it for this creator.`;
   }
   if (code.startsWith("error_face_angle")) {
-    return `Couldn't get a clean ${lower} — try a photo facing the camera directly.`;
+    return `Couldn't get a clean ${lower}. Try a photo facing the camera directly.`;
   }
   if (code === "error_src_face_too_small") {
-    return `Couldn't get a clean ${lower} — try a closer, face-forward photo.`;
+    return `Couldn't get a clean ${lower}. Try a closer, face-forward photo.`;
   }
   if (code === "CreditInsufficiency") {
     return `We're out of YouCam credits for ${lower} right now.`;

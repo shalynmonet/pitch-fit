@@ -64,7 +64,7 @@ export async function drawWatermarkedImage(
   }
   ctx.restore();
 
-  const badgeText = "CONCEPT MOCK — NOT FOR POSTING";
+  const badgeText = "CONCEPT MOCK: NOT FOR POSTING";
   const badgeFontSize = Math.max(14, Math.round(imgWidth / 48));
   ctx.font = `700 ${badgeFontSize}px Arial, sans-serif`;
   const paddingX = badgeFontSize * 0.8;

@@ -14,7 +14,7 @@ export default function Home() {
         </h1>
         <p className="mt-6 max-w-xl text-lg text-ink-soft">
           Upload a selfie and a product photo. PitchFit shows you wearing it and writes the pitch
-          — hooks, shot list, and email — so you can land the deal before you shoot a single
+          (hooks, shot list, and email) so you can land the deal before you shoot a single
           frame.
         </p>
 
@@ -36,7 +36,7 @@ export default function Home() {
         <div className="mt-20 grid max-w-3xl grid-cols-1 gap-8 border-t border-line pt-10 text-left sm:grid-cols-3">
           <Safeguard
             title="Always watermarked"
-            body="Every mock is stamped “Concept Mock” — baked into the image, never removable."
+            body="Every mock is stamped “Concept Mock,” baked into the image and never removable."
           />
           <Safeguard
             title="Private by default"

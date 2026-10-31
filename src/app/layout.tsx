@@ -20,7 +20,7 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "PitchFit — See yourself in the product before you pitch it",
+  title: "PitchFit: See yourself in the product before you pitch it",
   description:
     "PitchFit generates concept try-on mocks and pitch decks for UGC creators and brands, powered by YouCam Clothes VTO.",
 };

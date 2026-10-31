@@ -136,7 +136,7 @@ export default function CreatorPage() {
         <h1 className="font-serif text-3xl sm:text-4xl">Creator concept mock</h1>
         <p className="mt-2 max-w-xl text-ink-soft">
           Upload a selfie and a product photo. We&apos;ll generate a try-on mock and a pitch
-          concept you can send to the brand — before you ever shoot real content.
+          concept you can send to the brand, before you ever shoot real content.
         </p>
 
         {status === "loading" && (
@@ -253,7 +253,7 @@ export default function CreatorPage() {
                     Beauty pitch
                   </span>
                   <span className="mt-1 block text-sm text-ink-soft">
-                    Also scan your selfie for your top Skin Strengths and a Shade Match line —
+                    Also scan your selfie for your top Skin Strengths and a Shade Match line,
                     woven into your pitch.
                   </span>
                 </span>
@@ -317,10 +317,10 @@ function friendlySkinApiError(json: { error?: string; code?: string }, feature: 
     return `${feature} took longer than expected, so we skipped it this time.`;
   }
   if (code.startsWith("error_face_angle")) {
-    return `Couldn't get a clean ${lower} — try a photo facing the camera directly.`;
+    return `Couldn't get a clean ${lower}. Try a photo facing the camera directly.`;
   }
   if (code === "error_src_face_too_small") {
-    return `Couldn't get a clean ${lower} — try a closer, face-forward photo.`;
+    return `Couldn't get a clean ${lower}. Try a closer, face-forward photo.`;
   }
   if (code === "CreditInsufficiency") {
     return `We're out of YouCam credits for ${lower} right now.`;
