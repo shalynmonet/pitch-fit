@@ -7,6 +7,7 @@ import LoadingNote from "@/components/LoadingNote";
 import PitchBoard from "@/components/PitchBoard";
 import { NICHES, GARMENT_CATEGORIES, type Niche, type GarmentCategory, type Concept } from "@/lib/types";
 import type { ShadeMatch } from "@/lib/shade";
+import type { SkinStrength } from "@/lib/skinStrengths";
 
 type Status = "idle" | "loading" | "error" | "done";
 
@@ -27,6 +28,8 @@ export default function CreatorPage() {
   const [concept, setConcept] = useState<Concept | null>(null);
   const [shadeMatch, setShadeMatch] = useState<ShadeMatch | null>(null);
   const [shadeNote, setShadeNote] = useState<string | null>(null);
+  const [skinStrengths, setSkinStrengths] = useState<SkinStrength[] | null>(null);
+  const [skinStrengthsNote, setSkinStrengthsNote] = useState<string | null>(null);
 
   const canGenerate = selfie && garment && productName.trim() && productDescription.trim();
 
@@ -36,6 +39,8 @@ export default function CreatorPage() {
     setError(null);
     setShadeMatch(null);
     setShadeNote(null);
+    setSkinStrengths(null);
+    setSkinStrengthsNote(null);
 
     try {
       const vtoForm = new FormData();
@@ -46,17 +51,39 @@ export default function CreatorPage() {
       const skinToneForm = new FormData();
       skinToneForm.set("selfie", selfie);
 
-      const [vtoRes, conceptRes, skinToneRes] = await Promise.all([
-        fetch("/api/vto", { method: "POST", body: vtoForm }),
-        fetch("/api/concept", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ productName, productDescription, niche }),
-        }),
-        beautyPitch
-          ? fetch("/api/skin-tone", { method: "POST", body: skinToneForm })
-          : Promise.resolve(null),
-      ]);
+      const skinAnalysisForm = new FormData();
+      skinAnalysisForm.set("selfie", selfie);
+
+      // Fire VTO and the Skin AI calls together; Skin Analysis is awaited before the
+      // concept call so its strengths can be woven into the hooks/pitch email.
+      const vtoPromise = fetch("/api/vto", { method: "POST", body: vtoForm });
+      const skinTonePromise = beautyPitch
+        ? fetch("/api/skin-tone", { method: "POST", body: skinToneForm })
+        : null;
+      const skinAnalysisPromise = beautyPitch
+        ? fetch("/api/skin-analysis", { method: "POST", body: skinAnalysisForm })
+        : null;
+
+      let strengths: SkinStrength[] | null = null;
+      if (skinAnalysisPromise) {
+        const skinAnalysisRes = await skinAnalysisPromise;
+        if (skinAnalysisRes.ok) {
+          const skinAnalysisJson = await skinAnalysisRes.json();
+          strengths = skinAnalysisJson.strengths ?? null;
+          setSkinStrengths(strengths);
+        } else {
+          const skinAnalysisJson = await skinAnalysisRes.json().catch(() => ({}));
+          setSkinStrengthsNote(friendlySkinAnalysisError(skinAnalysisJson));
+        }
+      }
+
+      const conceptRes = await fetch("/api/concept", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productName, productDescription, niche, skinStrengths: strengths }),
+      });
+
+      const [vtoRes, skinToneRes] = await Promise.all([vtoPromise, skinTonePromise ?? Promise.resolve(null)]);
 
       const vtoJson = await vtoRes.json();
       const conceptJson = await conceptRes.json();
@@ -80,7 +107,7 @@ export default function CreatorPage() {
           }
         } else {
           const skinToneJson = await skinToneRes.json().catch(() => ({}));
-          setShadeNote(friendlySkinError(skinToneJson));
+          setShadeNote(friendlySkinToneError(skinToneJson));
         }
       }
 
@@ -98,6 +125,8 @@ export default function CreatorPage() {
     setConcept(null);
     setShadeMatch(null);
     setShadeNote(null);
+    setSkinStrengths(null);
+    setSkinStrengthsNote(null);
   }
 
   return (
@@ -125,6 +154,8 @@ export default function CreatorPage() {
               creatorLabel={productName}
               shadeMatch={shadeMatch}
               shadeNote={shadeNote}
+              skinStrengths={skinStrengths}
+              skinStrengthsNote={skinStrengthsNote}
             />
             <button
               type="button"
@@ -222,7 +253,8 @@ export default function CreatorPage() {
                     Beauty pitch
                   </span>
                   <span className="mt-1 block text-sm text-ink-soft">
-                    Also scan your selfie for a Shade Match line you can use in your pitch.
+                    Also scan your selfie for your top Skin Strengths and a Shade Match line —
+                    woven into your pitch.
                   </span>
                 </span>
               </label>
@@ -278,19 +310,28 @@ function friendlyVtoError(json: { error?: string; code?: string }): string {
   return json.error ?? "Couldn't generate the try-on. Please try again.";
 }
 
-function friendlySkinError(json: { error?: string; code?: string }): string {
+function friendlySkinApiError(json: { error?: string; code?: string }, feature: string): string {
   const code = json.code ?? "";
+  const lower = feature.toLowerCase();
   if (code === "timeout") {
-    return "Shade Match took longer than expected, so we skipped it this time.";
+    return `${feature} took longer than expected, so we skipped it this time.`;
   }
   if (code.startsWith("error_face_angle")) {
-    return "Couldn't get a clean Shade Match — try a photo facing the camera directly.";
+    return `Couldn't get a clean ${lower} — try a photo facing the camera directly.`;
   }
   if (code === "error_src_face_too_small") {
-    return "Couldn't get a clean Shade Match — try a closer, face-forward photo.";
+    return `Couldn't get a clean ${lower} — try a closer, face-forward photo.`;
   }
   if (code === "CreditInsufficiency") {
-    return "We're out of YouCam credits for Shade Match right now.";
+    return `We're out of YouCam credits for ${lower} right now.`;
   }
-  return "Couldn't get a Shade Match for this photo, but your concept mock is ready.";
+  return `Couldn't get a ${lower} for this photo, but your concept mock is ready.`;
+}
+
+function friendlySkinToneError(json: { error?: string; code?: string }): string {
+  return friendlySkinApiError(json, "Shade Match");
+}
+
+function friendlySkinAnalysisError(json: { error?: string; code?: string }): string {
+  return friendlySkinApiError(json, "Skin Strengths");
 }

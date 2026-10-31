@@ -11,7 +11,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Expected JSON body" }, { status: 400 });
   }
 
-  const { productName, productDescription, niche } = (body ?? {}) as Record<string, unknown>;
+  const { productName, productDescription, niche, skinStrengths } = (body ?? {}) as Record<
+    string,
+    unknown
+  >;
 
   if (typeof productName !== "string" || !productName.trim()) {
     return NextResponse.json({ error: "productName is required" }, { status: 400 });
@@ -26,8 +29,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const skinStrengthLabels = Array.isArray(skinStrengths)
+    ? skinStrengths
+        .map((s) => (typeof s === "string" ? s : (s as { label?: unknown })?.label))
+        .filter((l): l is string => typeof l === "string" && l.trim().length > 0)
+    : undefined;
+
   try {
-    const concept = await generateConcept(productName, productDescription, niche as Niche);
+    const concept = await generateConcept(
+      productName,
+      productDescription,
+      niche as Niche,
+      skinStrengthLabels
+    );
     return NextResponse.json(concept);
   } catch (err) {
     console.error("Concept agent error:", err);

@@ -23,9 +23,15 @@ function client() {
 export async function generateConcept(
   productName: string,
   productDescription: string,
-  niche: Niche
+  niche: Niche,
+  skinStrengthLabels?: string[]
 ): Promise<Concept> {
   const ai = client();
+
+  const strengthsBlock =
+    skinStrengthLabels && skinStrengthLabels.length > 0
+      ? `\n\nThe creator's skin analysis highlighted these personal strengths: ${skinStrengthLabels.join(", ")}. Naturally weave at least one of these into a hook and into the pitch email as a genuine personal detail (for example: "my skin's hydration scores high, so this is the routine I'd show off"). Do not mention any score numbers, do not mention or imply any skin concern, flaw, or anything not listed as a strength, and keep the tone casual and creator-voiced, never clinical.`
+      : "";
 
   const prompt = `You are a UGC (user-generated content) creator strategist helping a creator pitch a brand deal.
 
@@ -33,7 +39,7 @@ Product name: ${productName}
 Product description: ${productDescription}
 Creator niche: ${niche}
 
-Write a pitch concept for a brand partnership. The creator has NOT shot any content yet — this is a concept pitch, not finished content. Make the creator's personal connection to the product in their niche (${niche}) explicit and specific, not generic.
+Write a pitch concept for a brand partnership. The creator has NOT shot any content yet — this is a concept pitch, not finished content. Make the creator's personal connection to the product in their niche (${niche}) explicit and specific, not generic.${strengthsBlock}
 
 Return:
 - hooks: exactly 3 short, scroll-stopping opening lines/hooks for a short-form video, tailored to the "${niche}" niche

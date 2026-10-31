@@ -103,6 +103,78 @@ export async function pollClothTask(
   throw new YouCamError("VTO task timed out", "timeout");
 }
 
+export interface SkinMetricScore {
+  type: string;
+  uiScore: number;
+  rawScore: number;
+}
+
+const SKIN_ANALYSIS_ACTIONS = [
+  "moisture",
+  "texture",
+  "radiance",
+  "redness",
+  "oiliness",
+  "firmness",
+  "wrinkle",
+  "dark_circle_v2",
+];
+
+export async function createSkinAnalysisTask(srcFileId: string): Promise<string> {
+  const res = await fetch(`${BASE_URL}/s2s/v2.0/task/skin-analysis`, {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({
+      src_file_id: srcFileId,
+      dst_actions: SKIN_ANALYSIS_ACTIONS,
+      format: "json",
+    }),
+  });
+  const json = await parseJsonOrThrow(res, "YouCam skin analysis task creation");
+  return json.data.task_id;
+}
+
+export async function pollSkinAnalysisTask(
+  taskId: string,
+  { timeoutMs = 45000, intervalMs = 3000 }: { timeoutMs?: number; intervalMs?: number } = {}
+): Promise<SkinMetricScore[]> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const res = await fetch(`${BASE_URL}/s2s/v2.0/task/skin-analysis/${taskId}`, {
+      headers: authHeaders({ "Content-Type": "application/json" }),
+    });
+    const json = await parseJsonOrThrow(res, "YouCam skin analysis poll");
+    const status = json.data.task_status;
+
+    if (status === "success") {
+      const output: unknown[] = json.data.results?.output ?? [];
+      return output
+        .filter((entry): entry is { type: string; ui_score: number; raw_score: number } => {
+          if (typeof entry !== "object" || entry === null) return false;
+          const e = entry as Record<string, unknown>;
+          return typeof e.ui_score === "number" && SKIN_ANALYSIS_ACTIONS.includes(e.type as string);
+        })
+        .map((entry) => ({ type: entry.type, uiScore: entry.ui_score, rawScore: entry.raw_score }));
+    }
+    if (status === "error") {
+      throw new YouCamError(json.data.error_message ?? "Skin analysis failed", json.data.error);
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new YouCamError("Skin analysis timed out", "timeout");
+}
+
+/** Full pipeline: upload a selfie and run AI Skin Analysis, returning per-metric scores. */
+export async function runSkinAnalysis(selfie: {
+  bytes: Buffer;
+  fileName: string;
+  contentType: string;
+}): Promise<SkinMetricScore[]> {
+  const fileId = await uploadImage(selfie.bytes, selfie.fileName, selfie.contentType);
+  const taskId = await createSkinAnalysisTask(fileId);
+  return pollSkinAnalysisTask(taskId);
+}
+
 export interface SkinToneResult {
   skinColorHex: string | null;
   eyeColorHex: string | null;
