@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Expected JSON body" }, { status: 400 });
   }
 
-  const { productName, productDescription, niche, skinStrengths } = (body ?? {}) as Record<
+  const { productName, productDescription, niche, skinStrengths, futureSelf } = (body ?? {}) as Record<
     string,
     unknown
   >;
@@ -40,7 +40,8 @@ export async function POST(req: NextRequest) {
       productName,
       productDescription,
       niche as Niche,
-      skinStrengthLabels
+      skinStrengthLabels,
+      futureSelf === true
     );
     return NextResponse.json(concept);
   } catch (err) {
