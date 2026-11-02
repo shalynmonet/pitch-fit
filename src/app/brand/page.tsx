@@ -10,6 +10,7 @@ import {
   PRODUCT_TYPES,
   PRODUCT_TYPE_PHOTO,
   PRODUCT_TYPE_PRODUCT_PHOTO_HINT,
+  FACE_PHOTO_REQUIREMENTS,
   type GarmentCategory,
   type ProductType,
 } from "@/lib/types";
@@ -35,6 +36,7 @@ interface CreatorResult {
 export default function BrandPage() {
   const [product, setProduct] = useState<File | null>(null);
   const [creators, setCreators] = useState<(File | null)[]>([null, null, null]);
+  const [creatorFaces, setCreatorFaces] = useState<(File | null)[]>([null, null, null]);
   const [productType, setProductType] = useState<ProductType>("clothing");
   const [garmentCategory, setGarmentCategory] = useState<GarmentCategory>("upper_body");
   const [compareSkinProfiles, setCompareSkinProfiles] = useState(false);
@@ -44,8 +46,12 @@ export default function BrandPage() {
   const [results, setResults] = useState<CreatorResult[] | null>(null);
 
   const activeCreators = creators.filter((c): c is File => c !== null);
+  const activeIndexes = creators.flatMap((c, i) => (c !== null ? [i] : []));
+  const allActiveHaveFacePhoto = activeIndexes.every((i) => creatorFaces[i] !== null);
   const canGenerate = Boolean(
-    product && activeCreators.length > 0 && (!compareSkinProfiles || consentChecked)
+    product &&
+      activeCreators.length > 0 &&
+      (!compareSkinProfiles || (consentChecked && allActiveHaveFacePhoto))
   );
 
   const strongestLabel = useMemo(() => {
@@ -64,11 +70,19 @@ export default function BrandPage() {
     setCreators((prev) => prev.map((c, i) => (i === index ? file : c)));
   }
 
-  async function fetchSkinProfile(creatorFile: File) {
+  function setCreatorFaceAt(index: number, file: File | null) {
+    setCreatorFaces((prev) => prev.map((c, i) => (i === index ? file : c)));
+  }
+
+  // Skin Strengths / Shade Match need a tight, face-filling headshot (YouCam requires
+  // the face to be >60% of the image width and level), which is a different framing
+  // than the body photo used for the try-on, so each creator gets a separate face
+  // photo rather than reusing their body photo.
+  async function fetchSkinProfile(faceFile: File) {
     const skinToneForm = new FormData();
-    skinToneForm.set("selfie", creatorFile);
+    skinToneForm.set("selfie", faceFile);
     const skinAnalysisForm = new FormData();
-    skinAnalysisForm.set("selfie", creatorFile);
+    skinAnalysisForm.set("selfie", faceFile);
 
     const [skinToneRes, skinAnalysisRes] = await Promise.all([
       fetch("/api/skin-tone", { method: "POST", body: skinToneForm }),
@@ -103,12 +117,15 @@ export default function BrandPage() {
 
   async function handleGenerate() {
     if (!product) return;
-    const chosen = activeCreators;
+    // Map back to original slot indexes so each creator's face photo (indexed the
+    // same way as `creators`) pairs with the right body photo, regardless of which
+    // slots were left empty.
+    const chosen = activeIndexes.map((index) => ({ index, file: creators[index]! }));
     setRunning(true);
     setResults(chosen.map((_, i) => ({ label: `Creator ${i + 1}`, status: "loading" })));
 
     const settled = await Promise.all(
-      chosen.map(async (creatorFile, i) => {
+      chosen.map(async ({ index, file: creatorFile }, i) => {
         try {
           const form = new FormData();
           form.set("selfie", creatorFile);
@@ -118,9 +135,10 @@ export default function BrandPage() {
             form.set("garmentCategory", garmentCategory);
           }
 
+          const faceFile = creatorFaces[index];
           const [vtoRes, skinProfile] = await Promise.all([
             fetch("/api/vto", { method: "POST", body: form }),
-            compareSkinProfiles ? fetchSkinProfile(creatorFile) : Promise.resolve(null),
+            compareSkinProfiles && faceFile ? fetchSkinProfile(faceFile) : Promise.resolve(null),
           ]);
           const json = await vtoRes.json();
           if (!vtoRes.ok) throw new Error(friendlyVtoError(json, productType));
@@ -305,9 +323,31 @@ export default function BrandPage() {
 
               {compareSkinProfiles && (
                 <div className="mt-3 flex flex-col gap-3 border-t border-line pt-3">
+                  {activeIndexes.length > 0 ? (
+                    <div>
+                      <span className="text-sm font-medium uppercase tracking-wide text-ink-soft">
+                        Face photo per creator
+                      </span>
+                      <div className="mt-3 grid grid-cols-1 gap-6 sm:grid-cols-3">
+                        {activeIndexes.map((index) => (
+                          <ImageDropzone
+                            key={index}
+                            label={`Creator ${index + 1} ${FACE_PHOTO_REQUIREMENTS.noun}`}
+                            hint={FACE_PHOTO_REQUIREMENTS.hint}
+                            file={creatorFaces[index]}
+                            onChange={(f) => setCreatorFaceAt(index, f)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-ink-soft">
+                      Add creator photos above, then upload a face photo per creator here.
+                    </p>
+                  )}
                   <p className="text-xs text-ink-soft">
-                    For the most accurate scan: face a window or soft light source, and skip
-                    filters.
+                    This needs a tighter, face-filling shot than the body photo above — face a
+                    window or soft light source, and skip filters.
                   </p>
                   <p className="text-xs text-ink-soft">{SKIN_AI_DISCLAIMER}</p>
                   <label className="flex items-start gap-3">
@@ -378,11 +418,17 @@ function friendlySkinApiError(json: { error?: string; code?: string }, feature: 
   if (code === "timeout") {
     return `${feature} took longer than expected, so we skipped it for this creator.`;
   }
+  if (code === "error_face_angle_downward") {
+    return `Couldn't get a clean ${lower}. Your head is tilted down — lift your chin and face the camera directly, then try again.`;
+  }
+  if (code === "error_face_angle_upward") {
+    return `Couldn't get a clean ${lower}. Your head is tilted back — level your chin and face the camera directly, then try again.`;
+  }
   if (code.startsWith("error_face_angle")) {
-    return `Couldn't get a clean ${lower}. Try a photo facing the camera directly.`;
+    return `Couldn't get a clean ${lower}. Face the camera directly, then try again.`;
   }
   if (code === "error_src_face_too_small") {
-    return `Couldn't get a clean ${lower}. Try a closer, face-forward photo.`;
+    return `Couldn't get a clean ${lower}. Your face is too small in the frame — move closer so it fills most of the photo, then try again.`;
   }
   if (code === "CreditInsufficiency") {
     return `We're out of YouCam credits for ${lower} right now.`;

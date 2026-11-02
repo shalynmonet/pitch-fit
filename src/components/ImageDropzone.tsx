@@ -28,6 +28,7 @@ export default function ImageDropzone({ label, hint, file, onChange }: ImageDrop
   return (
     <div className="flex flex-col gap-2">
       <span className="text-sm font-medium text-ink-soft uppercase tracking-wide">{label}</span>
+      {hint && <span className="text-xs text-ink-soft/70">{hint}</span>}
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
@@ -64,7 +65,6 @@ export default function ImageDropzone({ label, hint, file, onChange }: ImageDrop
           <div className="flex flex-col items-center gap-2 px-6 text-center">
             <span className="text-3xl leading-none text-ink-soft">+</span>
             <span className="text-sm text-ink-soft">Click or drag an image here</span>
-            {hint && <span className="text-xs text-ink-soft/70">{hint}</span>}
           </div>
         )}
       </button>

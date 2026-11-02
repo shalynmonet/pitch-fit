@@ -11,6 +11,7 @@ import {
   PRODUCT_TYPES,
   PRODUCT_TYPE_PHOTO,
   PRODUCT_TYPE_PRODUCT_PHOTO_HINT,
+  FACE_PHOTO_REQUIREMENTS,
   type Niche,
   type GarmentCategory,
   type ProductType,
@@ -25,6 +26,7 @@ const SKIN_AI_DISCLAIMER = "Cosmetic skin analysis, not medical advice. Results 
 
 export default function CreatorPage() {
   const [selfie, setSelfie] = useState<File | null>(null);
+  const [facePhoto, setFacePhoto] = useState<File | null>(null);
   const [productImage, setProductImage] = useState<File | null>(null);
   const [productName, setProductName] = useState("");
   const [productDescription, setProductDescription] = useState("");
@@ -42,7 +44,12 @@ export default function CreatorPage() {
   const [skinStrengths, setSkinStrengths] = useState<SkinStrength[] | null>(null);
   const [skinStrengthsNote, setSkinStrengthsNote] = useState<string | null>(null);
 
-  const canGenerate = selfie && productImage && productName.trim() && productDescription.trim();
+  const canGenerate =
+    selfie &&
+    productImage &&
+    productName.trim() &&
+    productDescription.trim() &&
+    (!beautyPitch || facePhoto);
 
   async function handleGenerate() {
     if (!selfie || !productImage) return;
@@ -62,21 +69,26 @@ export default function CreatorPage() {
         vtoForm.set("garmentCategory", garmentCategory);
       }
 
+      // Skin Strengths / Shade Match need a tight, face-filling headshot (YouCam
+      // requires the face to be >60% of the image width and level), which is a
+      // different framing than the chest-up body selfie used for the try-on, so
+      // they get their own photo rather than reusing the body selfie.
       const skinToneForm = new FormData();
-      skinToneForm.set("selfie", selfie);
-
       const skinAnalysisForm = new FormData();
-      skinAnalysisForm.set("selfie", selfie);
+      if (beautyPitch && facePhoto) {
+        skinToneForm.set("selfie", facePhoto);
+        skinAnalysisForm.set("selfie", facePhoto);
+      }
 
       // Fire VTO and the Skin AI calls together; Skin Analysis is awaited before the
       // concept call so its strengths can be woven into the hooks/pitch email.
       const vtoPromise = fetch("/api/vto", { method: "POST", body: vtoForm });
-      const skinTonePromise = beautyPitch
-        ? fetch("/api/skin-tone", { method: "POST", body: skinToneForm })
-        : null;
-      const skinAnalysisPromise = beautyPitch
-        ? fetch("/api/skin-analysis", { method: "POST", body: skinAnalysisForm })
-        : null;
+      const skinTonePromise =
+        beautyPitch && facePhoto ? fetch("/api/skin-tone", { method: "POST", body: skinToneForm }) : null;
+      const skinAnalysisPromise =
+        beautyPitch && facePhoto
+          ? fetch("/api/skin-analysis", { method: "POST", body: skinAnalysisForm })
+          : null;
 
       let strengths: SkinStrength[] | null = null;
       if (skinAnalysisPromise) {
@@ -149,7 +161,7 @@ export default function CreatorPage() {
       <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-12 sm:px-10">
         <h1 className="font-serif text-3xl sm:text-4xl">Creator concept mock</h1>
         <p className="mt-2 max-w-xl text-ink-soft">
-          Upload a selfie and a product photo. We&apos;ll generate a try-on mock and a pitch
+          Upload a photo of yourself and a product photo. We&apos;ll generate a try-on mock and a pitch
           concept you can send to the brand, before you ever shoot real content.
         </p>
 
@@ -301,18 +313,26 @@ export default function CreatorPage() {
                     Beauty pitch
                   </span>
                   <span className="mt-1 block text-sm text-ink-soft">
-                    Also scan your selfie for your top Skin Strengths and a Shade Match line,
+                    Also scan a face photo for your top Skin Strengths and a Shade Match line,
                     woven into your pitch.
                   </span>
                 </span>
               </label>
               {beautyPitch && (
-                <div className="mt-3 border-t border-line pt-3 text-xs text-ink-soft">
-                  <p>
-                    For the most accurate scan: face a window or soft light source, and skip
-                    filters.
+                <div className="mt-3 border-t border-line pt-3">
+                  <div className="max-w-xs">
+                    <ImageDropzone
+                      label={`Your ${FACE_PHOTO_REQUIREMENTS.noun}`}
+                      hint={FACE_PHOTO_REQUIREMENTS.hint}
+                      file={facePhoto}
+                      onChange={setFacePhoto}
+                    />
+                  </div>
+                  <p className="mt-3 text-xs text-ink-soft">
+                    This needs a tighter, face-filling shot than your try-on photo above — face
+                    a window or soft light source, and skip filters.
                   </p>
-                  <p className="mt-1">{SKIN_AI_DISCLAIMER}</p>
+                  <p className="mt-1 text-xs text-ink-soft">{SKIN_AI_DISCLAIMER}</p>
                 </div>
               )}
             </div>
@@ -375,11 +395,17 @@ function friendlySkinApiError(json: { error?: string; code?: string }, feature: 
   if (code === "timeout") {
     return `${feature} took longer than expected, so we skipped it this time.`;
   }
+  if (code === "error_face_angle_downward") {
+    return `Couldn't get a clean ${lower}. Your head is tilted down — lift your chin and face the camera directly, then try again.`;
+  }
+  if (code === "error_face_angle_upward") {
+    return `Couldn't get a clean ${lower}. Your head is tilted back — level your chin and face the camera directly, then try again.`;
+  }
   if (code.startsWith("error_face_angle")) {
-    return `Couldn't get a clean ${lower}. Try a photo facing the camera directly.`;
+    return `Couldn't get a clean ${lower}. Face the camera directly, then try again.`;
   }
   if (code === "error_src_face_too_small") {
-    return `Couldn't get a clean ${lower}. Try a closer, face-forward photo.`;
+    return `Couldn't get a clean ${lower}. Your face is too small in the frame — move closer so it fills most of the photo, then try again.`;
   }
   if (code === "CreditInsufficiency") {
     return `We're out of YouCam credits for ${lower} right now.`;
