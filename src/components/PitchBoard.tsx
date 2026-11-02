@@ -2,14 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { drawWatermarkedImage, canvasToPngDownload, type FooterLine } from "@/lib/watermark";
-import type { Concept, FutureSelfResult } from "@/lib/types";
+import type { Concept } from "@/lib/types";
 import type { ShadeMatch } from "@/lib/shade";
 import type { SkinStrength } from "@/lib/skinStrengths";
 
 const SKIN_AI_DISCLAIMER = "Cosmetic skin analysis, not medical advice. Results vary with lighting.";
-const FUTURE_SELF_CAPTION = "AI-generated aging visualization, not a forecast.";
-const FUTURE_SELF_NOTE =
-  "AI-generated visualization for creative concepts only. Not a prediction of how you will age.";
 
 interface PitchBoardProps {
   resultImageSrc: string;
@@ -20,10 +17,6 @@ interface PitchBoardProps {
   shadeNote?: string | null;
   skinStrengths?: SkinStrength[] | null;
   skinStrengthsNote?: string | null;
-  futureSelf?: FutureSelfResult | null;
-  futureSelfAges?: number[] | null;
-  futureSelfNote?: string | null;
-  onFutureSelfAgeChange?: (slot: number, age: number) => void;
 }
 
 export default function PitchBoard({
@@ -35,23 +28,12 @@ export default function PitchBoard({
   shadeNote,
   skinStrengths,
   skinStrengthsNote,
-  futureSelf,
-  futureSelfAges,
-  futureSelfNote,
-  onFutureSelfAgeChange,
 }: PitchBoardProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [copied, setCopied] = useState(false);
   const [ready, setReady] = useState(false);
 
   const hasBeautyPitch = Boolean(shadeMatch || shadeNote || skinStrengths?.length || skinStrengthsNote);
-  const futureSelfFrames =
-    futureSelf && futureSelfAges
-      ? futureSelfAges
-          .map((age) => futureSelf.frames.find((f) => f.age === age))
-          .filter((f): f is { age: number; dataUrl: string } => Boolean(f))
-      : [];
-  const hasFutureSelf = Boolean((futureSelf && futureSelfFrames.length === 3) || futureSelfNote);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -68,16 +50,10 @@ export default function PitchBoard({
       footerLines.push({ text: SKIN_AI_DISCLAIMER, muted: true });
     }
 
-    const ageStrip =
-      futureSelfFrames.length === 3
-        ? { items: futureSelfFrames, caption: FUTURE_SELF_CAPTION, note: FUTURE_SELF_NOTE }
-        : undefined;
-
-    drawWatermarkedImage(canvas, resultImageSrc, { footerLines, ageStrip })
+    drawWatermarkedImage(canvas, resultImageSrc, { footerLines })
       .then(() => setReady(true))
       .catch((err) => console.error(err));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resultImageSrc, shadeMatch, skinStrengths, futureSelfAges, futureSelf]);
+  }, [resultImageSrc, shadeMatch, skinStrengths]);
 
   function download() {
     if (!canvasRef.current) return;
@@ -204,67 +180,6 @@ export default function PitchBoard({
             {concept.pitchEmail}
           </p>
         </section>
-
-        {hasFutureSelf && (
-          <section>
-            <h3 className="font-serif text-xl">Future Self</h3>
-
-            {futureSelf && futureSelfAges && futureSelfFrames.length === 3 ? (
-              <>
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  {futureSelfAges.map((age, slot) => (
-                    <div key={slot} className="flex flex-col gap-1">
-                      <div className="aspect-[3/4] overflow-hidden rounded-sm border border-line bg-white">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={futureSelf.frames.find((f) => f.age === age)?.dataUrl}
-                          alt={`AI aging visualization at age ${age}`}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                      <select
-                        value={age}
-                        onChange={(e) => onFutureSelfAgeChange?.(slot, Number(e.target.value))}
-                        className="border border-line bg-white px-2 py-1 text-xs outline-none focus:border-ink"
-                      >
-                        {futureSelf.frames.map((f) => (
-                          <option key={f.age} value={f.age}>
-                            Age {f.age}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  ))}
-                </div>
-
-                {concept.futureSelf && (
-                  <div className="mt-4 flex flex-col gap-3">
-                    <p className="border-l-2 border-accent pl-3 text-sm leading-relaxed">
-                      {concept.futureSelf.hook}
-                    </p>
-                    <ol className="flex flex-col gap-2">
-                      {concept.futureSelf.shots.map((shot, i) => (
-                        <li key={i} className="flex gap-3 text-sm leading-relaxed">
-                          <span className="font-serif text-ink-soft">{i + 1}.</span>
-                          <span>{shot}</span>
-                        </li>
-                      ))}
-                    </ol>
-                    <p className="rounded-sm border border-line bg-white p-4 text-sm leading-relaxed text-ink-soft">
-                      {concept.futureSelf.pitchLine}
-                    </p>
-                  </div>
-                )}
-
-                <p className="mt-3 text-xs text-ink-soft/70">{FUTURE_SELF_NOTE}</p>
-              </>
-            ) : (
-              <p className="mt-2 rounded-sm border border-line bg-white p-4 text-sm text-ink-soft">
-                {futureSelfNote}
-              </p>
-            )}
-          </section>
-        )}
       </div>
     </div>
   );

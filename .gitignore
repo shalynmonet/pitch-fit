@@ -41,9 +41,6 @@ yarn-error.log*
 /scripts/fixtures/
 /scripts/test-vto-result.jpg
 
-# research scratch output (API exploration, personal test photos, never commit)
-/research/
-
 # typescript
 *.tsbuildinfo
 next-env.d.ts

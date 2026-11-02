@@ -8,30 +8,10 @@ export type GarmentCategory =
   | "outer"
   | "auto";
 
-export interface FutureSelfConcept {
-  hook: string;
-  shots: string[];
-  pitchLine: string;
-}
-
 export interface Concept {
   hooks: string[];
   shotList: string[];
   pitchEmail: string;
-  futureSelf?: FutureSelfConcept;
-}
-
-export interface FutureSelfFrame {
-  age: number;
-  dataUrl: string;
-}
-
-export interface FutureSelfResult {
-  estimatedAge: number;
-  ageMin: number;
-  ageMax: number;
-  frames: FutureSelfFrame[];
-  defaultAges: number[];
 }
 
 export const NICHES: { value: Niche; label: string }[] = [

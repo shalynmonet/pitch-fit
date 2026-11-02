@@ -5,22 +5,13 @@ import SiteHeader from "@/components/SiteHeader";
 import ImageDropzone from "@/components/ImageDropzone";
 import LoadingNote from "@/components/LoadingNote";
 import PitchBoard from "@/components/PitchBoard";
-import {
-  NICHES,
-  GARMENT_CATEGORIES,
-  type Niche,
-  type GarmentCategory,
-  type Concept,
-  type FutureSelfResult,
-} from "@/lib/types";
+import { NICHES, GARMENT_CATEGORIES, type Niche, type GarmentCategory, type Concept } from "@/lib/types";
 import type { ShadeMatch } from "@/lib/shade";
 import type { SkinStrength } from "@/lib/skinStrengths";
 
 type Status = "idle" | "loading" | "error" | "done";
 
 const SKIN_AI_DISCLAIMER = "Cosmetic skin analysis, not medical advice. Results vary with lighting.";
-const FUTURE_SELF_DISCLAIMER =
-  "AI-generated visualization for creative concepts only. Not a prediction of how you will age.";
 
 export default function CreatorPage() {
   const [selfie, setSelfie] = useState<File | null>(null);
@@ -30,7 +21,6 @@ export default function CreatorPage() {
   const [niche, setNiche] = useState<Niche>("travel");
   const [garmentCategory, setGarmentCategory] = useState<GarmentCategory>("upper_body");
   const [beautyPitch, setBeautyPitch] = useState(false);
-  const [futureSelf, setFutureSelf] = useState(false);
 
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -40,9 +30,6 @@ export default function CreatorPage() {
   const [shadeNote, setShadeNote] = useState<string | null>(null);
   const [skinStrengths, setSkinStrengths] = useState<SkinStrength[] | null>(null);
   const [skinStrengthsNote, setSkinStrengthsNote] = useState<string | null>(null);
-  const [futureSelfResult, setFutureSelfResult] = useState<FutureSelfResult | null>(null);
-  const [futureSelfAges, setFutureSelfAges] = useState<number[] | null>(null);
-  const [futureSelfNote, setFutureSelfNote] = useState<string | null>(null);
 
   const canGenerate = selfie && garment && productName.trim() && productDescription.trim();
 
@@ -54,9 +41,6 @@ export default function CreatorPage() {
     setShadeNote(null);
     setSkinStrengths(null);
     setSkinStrengthsNote(null);
-    setFutureSelfResult(null);
-    setFutureSelfAges(null);
-    setFutureSelfNote(null);
 
     try {
       const vtoForm = new FormData();
@@ -70,20 +54,14 @@ export default function CreatorPage() {
       const skinAnalysisForm = new FormData();
       skinAnalysisForm.set("selfie", selfie);
 
-      const futureSelfForm = new FormData();
-      futureSelfForm.set("selfie", selfie);
-
-      // Fire VTO and the Skin AI / Future Self calls together; Skin Analysis is awaited
-      // before the concept call so its strengths can be woven into the hooks/pitch email.
+      // Fire VTO and the Skin AI calls together; Skin Analysis is awaited before the
+      // concept call so its strengths can be woven into the hooks/pitch email.
       const vtoPromise = fetch("/api/vto", { method: "POST", body: vtoForm });
       const skinTonePromise = beautyPitch
         ? fetch("/api/skin-tone", { method: "POST", body: skinToneForm })
         : null;
       const skinAnalysisPromise = beautyPitch
         ? fetch("/api/skin-analysis", { method: "POST", body: skinAnalysisForm })
-        : null;
-      const futureSelfPromise = futureSelf
-        ? fetch("/api/future-self", { method: "POST", body: futureSelfForm })
         : null;
 
       let strengths: SkinStrength[] | null = null;
@@ -102,20 +80,10 @@ export default function CreatorPage() {
       const conceptRes = await fetch("/api/concept", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productName,
-          productDescription,
-          niche,
-          skinStrengths: strengths,
-          futureSelf,
-        }),
+        body: JSON.stringify({ productName, productDescription, niche, skinStrengths: strengths }),
       });
 
-      const [vtoRes, skinToneRes, futureSelfRes] = await Promise.all([
-        vtoPromise,
-        skinTonePromise ?? Promise.resolve(null),
-        futureSelfPromise ?? Promise.resolve(null),
-      ]);
+      const [vtoRes, skinToneRes] = await Promise.all([vtoPromise, skinTonePromise ?? Promise.resolve(null)]);
 
       const vtoJson = await vtoRes.json();
       const conceptJson = await conceptRes.json();
@@ -143,17 +111,6 @@ export default function CreatorPage() {
         }
       }
 
-      if (futureSelf && futureSelfRes) {
-        if (futureSelfRes.ok) {
-          const futureSelfJson: FutureSelfResult = await futureSelfRes.json();
-          setFutureSelfResult(futureSelfJson);
-          setFutureSelfAges(futureSelfJson.defaultAges);
-        } else {
-          const futureSelfJson = await futureSelfRes.json().catch(() => ({}));
-          setFutureSelfNote(friendlyFutureSelfError(futureSelfJson));
-        }
-      }
-
       setStatus("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
@@ -170,18 +127,6 @@ export default function CreatorPage() {
     setShadeNote(null);
     setSkinStrengths(null);
     setSkinStrengthsNote(null);
-    setFutureSelfResult(null);
-    setFutureSelfAges(null);
-    setFutureSelfNote(null);
-  }
-
-  function changeFutureSelfAge(slot: number, age: number) {
-    setFutureSelfAges((prev) => {
-      if (!prev) return prev;
-      const next = [...prev];
-      next[slot] = age;
-      return next;
-    });
   }
 
   return (
@@ -211,10 +156,6 @@ export default function CreatorPage() {
               shadeNote={shadeNote}
               skinStrengths={skinStrengths}
               skinStrengthsNote={skinStrengthsNote}
-              futureSelf={futureSelfResult}
-              futureSelfAges={futureSelfAges}
-              futureSelfNote={futureSelfNote}
-              onFutureSelfAgeChange={changeFutureSelfAge}
             />
             <button
               type="button"
@@ -328,32 +269,6 @@ export default function CreatorPage() {
               )}
             </div>
 
-            <div className="border border-line bg-white p-4">
-              <label className="flex items-start gap-3">
-                <input
-                  type="checkbox"
-                  checked={futureSelf}
-                  onChange={(e) => setFutureSelf(e.target.checked)}
-                  className="mt-1 h-4 w-4 accent-accent"
-                />
-                <span>
-                  <span className="block text-sm font-medium uppercase tracking-wide text-ink">
-                    Future Self (skincare pitch)
-                  </span>
-                  <span className="mt-1 block text-sm text-ink-soft">
-                    Generate an AI aging visualization at 3 ages (now, +10 years, +25 years) and
-                    an extra campaign concept built around starting a skincare routine.
-                  </span>
-                </span>
-              </label>
-              {futureSelf && (
-                <div className="mt-3 border-t border-line pt-3 text-xs text-ink-soft">
-                  <p>Use a clear, forward-facing photo for the most convincing visualization.</p>
-                  <p className="mt-1">{FUTURE_SELF_DISCLAIMER}</p>
-                </div>
-              )}
-            </div>
-
             {error && (
               <p className="border border-accent/30 bg-accent/5 px-4 py-3 text-sm text-accent">
                 {error}
@@ -419,8 +334,4 @@ function friendlySkinToneError(json: { error?: string; code?: string }): string 
 
 function friendlySkinAnalysisError(json: { error?: string; code?: string }): string {
   return friendlySkinApiError(json, "Skin Strengths");
-}
-
-function friendlyFutureSelfError(json: { error?: string; code?: string }): string {
-  return friendlySkinApiError(json, "Future Self visualization");
 }
