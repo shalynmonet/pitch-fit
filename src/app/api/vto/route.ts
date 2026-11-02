@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runClothVto, YouCamError, type GarmentCategory } from "@/lib/youcam";
+import { runClothVto, runJewelryVto, YouCamError, type GarmentCategory, type JewelryType } from "@/lib/youcam";
 
 export const maxDuration = 60;
 
@@ -11,6 +11,8 @@ const GARMENT_CATEGORIES: GarmentCategory[] = [
   "outer",
   "auto",
 ];
+
+const JEWELRY_TYPES: JewelryType[] = ["necklace", "earring", "bracelet", "ring", "watch"];
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
@@ -27,45 +29,56 @@ export async function POST(req: NextRequest) {
   }
 
   const selfieFile = form.get("selfie");
-  const garmentFile = form.get("garment");
+  const productFile = form.get("product");
+  const productType = (form.get("productType") ?? "clothing") as string;
   const garmentCategoryRaw = form.get("garmentCategory");
 
-  if (!(selfieFile instanceof File) || !(garmentFile instanceof File)) {
+  if (!(selfieFile instanceof File) || !(productFile instanceof File)) {
     return NextResponse.json(
-      { error: "Both 'selfie' and 'garment' image files are required" },
+      { error: "Both a photo of the wearer and a product image are required" },
       { status: 400 }
     );
   }
 
-  const garmentCategory = (garmentCategoryRaw ?? "auto") as string;
-  if (!GARMENT_CATEGORIES.includes(garmentCategory as GarmentCategory)) {
+  if (productType !== "clothing" && !JEWELRY_TYPES.includes(productType as JewelryType)) {
     return NextResponse.json(
-      { error: `garmentCategory must be one of: ${GARMENT_CATEGORIES.join(", ")}` },
+      { error: `productType must be one of: clothing, ${JEWELRY_TYPES.join(", ")}` },
       { status: 400 }
     );
   }
 
-  if (selfieFile.size > MAX_IMAGE_BYTES || garmentFile.size > MAX_IMAGE_BYTES) {
+  if (selfieFile.size > MAX_IMAGE_BYTES || productFile.size > MAX_IMAGE_BYTES) {
     return NextResponse.json({ error: "Images must be under 10MB" }, { status: 400 });
   }
-  if (!selfieFile.type.startsWith("image/") || !garmentFile.type.startsWith("image/")) {
+  if (!selfieFile.type.startsWith("image/") || !productFile.type.startsWith("image/")) {
     return NextResponse.json({ error: "Both files must be images" }, { status: 400 });
   }
 
   try {
-    const resultDataUrl = await runClothVto(
-      {
-        bytes: await fileToBytes(selfieFile),
-        fileName: selfieFile.name || "selfie.jpg",
-        contentType: selfieFile.type || "image/jpeg",
-      },
-      {
-        bytes: await fileToBytes(garmentFile),
-        fileName: garmentFile.name || "garment.jpg",
-        contentType: garmentFile.type || "image/jpeg",
-      },
-      garmentCategory as GarmentCategory
-    );
+    const wearerPhoto = {
+      bytes: await fileToBytes(selfieFile),
+      fileName: selfieFile.name || "photo.jpg",
+      contentType: selfieFile.type || "image/jpeg",
+    };
+    const product = {
+      bytes: await fileToBytes(productFile),
+      fileName: productFile.name || "product.jpg",
+      contentType: productFile.type || "image/jpeg",
+    };
+
+    let resultDataUrl: string;
+    if (productType === "clothing") {
+      const garmentCategory = (garmentCategoryRaw ?? "auto") as string;
+      if (!GARMENT_CATEGORIES.includes(garmentCategory as GarmentCategory)) {
+        return NextResponse.json(
+          { error: `garmentCategory must be one of: ${GARMENT_CATEGORIES.join(", ")}` },
+          { status: 400 }
+        );
+      }
+      resultDataUrl = await runClothVto(wearerPhoto, product, garmentCategory as GarmentCategory);
+    } else {
+      resultDataUrl = await runJewelryVto(productType as JewelryType, wearerPhoto, product);
+    }
 
     return NextResponse.json({ resultDataUrl });
   } catch (err) {

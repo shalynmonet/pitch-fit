@@ -26,24 +26,32 @@ mock, never mistakable for finished content.
 
 ## How it works
 
-1. **Creator mode**: upload a selfie + a product photo, add the product name/description
-   and pick your niche (travel, wellness, fashion, maker, beauty, other). PitchFit runs
-   a virtual try-on and writes 3 hooks, a 5-shot shot list, and a pitch email — all
-   exported together as a single watermarked PNG "pitch board." An optional **Beauty
-   pitch** toggle also scans the selfie for a Skin Strengths card and a Shade Match line
-   (see [Skin AI APIs](#skin-ai-apis) below), which the concept agent weaves into a hook
-   and the pitch email.
-2. **Brand mode**: upload one product photo and up to 3 creator photos. PitchFit runs
-   the try-on for each creator and shows a watermarked grid so you can preview fit
-   across creators before reaching out. An optional **Compare skin profiles** toggle
-   scans each creator's photo and lets you highlight whoever scores strongest on a
-   metric you pick (Hydration, Texture, Radiance, etc.).
+1. **Creator mode**: pick a product type (Clothing, Necklace, Earrings, Bracelet, Ring,
+   or Watch), upload the matching photo of yourself (selfie, wrist, or hand) and a
+   product photo, add the product name/description, and pick your niche (travel,
+   wellness, fashion, maker, beauty, other). PitchFit runs the matching virtual try-on
+   (see [YouCam APIs used](#youcam-apis-used) below) and writes 3 hooks, a 5-shot shot
+   list, and a pitch email — all exported together as a single watermarked PNG "pitch
+   board." An optional **Beauty pitch** toggle also scans the selfie for a Skin
+   Strengths card and a Shade Match line (see [Skin AI APIs](#skin-ai-apis) below),
+   which the concept agent weaves into a hook and the pitch email.
+2. **Brand mode**: pick a product type, upload one product photo and up to 3 creator
+   photos (matching the product type's photo requirement). PitchFit runs the matching
+   try-on for each creator and shows a watermarked grid so you can preview fit across
+   creators before reaching out. An optional **Compare skin profiles** toggle scans
+   each creator's photo and lets you highlight whoever scores strongest on a metric you
+   pick (Hydration, Texture, Radiance, etc.).
 
 ## YouCam APIs used
 
-PitchFit uses the **YouCam Enterprise (YCE) AI Clothes / Clothes VTO v4** API
-(`https://yce-api-01.makeupar.com`) for the virtual try-on, via server-only API routes
-([src/lib/youcam.ts](src/lib/youcam.ts)):
+PitchFit routes each try-on to the matching YouCam Enterprise (YCE) API
+(`https://yce-api-01.makeupar.com`) based on the selected **Product type**, via
+server-only API routes ([src/lib/youcam.ts](src/lib/youcam.ts), dispatched from
+[src/app/api/vto/route.ts](src/app/api/vto/route.ts)). Auth is a single
+`Authorization: Bearer YOUCAM_API_KEY` header for every endpoint below, no separate
+token exchange required.
+
+### AI Clothes / Clothes VTO v4 (`clothing`)
 
 1. **File upload** — `POST /s2s/v2.0/file` registers the selfie and garment images and
    returns a presigned `PUT` URL per file; the raw image bytes are then uploaded
@@ -55,13 +63,36 @@ PitchFit uses the **YouCam Enterprise (YCE) AI Clothes / Clothes VTO v4** API
    until `task_status` is `success` (with a `results.url` image, valid ~2 hours) or
    `error`.
 
-The server downloads the result and returns it to the browser as a base64 `data:` URL
-(not the original signed URL), so it can be drawn onto a `<canvas>` for watermarking
-without cross-origin issues, and so the short-lived YouCam URL is never the thing the
-frontend depends on.
+### AI Jewelry & Watch Virtual Try-On (`necklace` / `earring` / `bracelet` / `ring` / `watch`)
 
-Auth is a single `Authorization: Bearer YOUCAM_API_KEY` header — no separate token
-exchange is required for the v2/v4 Clothes endpoints.
+Each product type listed above is a **separate endpoint**, not one endpoint with a type
+parameter (confirmed against `docs.perfectcorp.com`, since Clothes VTO had previously
+been used to render a necklace, with predictably bad results):
+
+| Type | Create | Poll | Photo needed | Unit cost |
+| --- | --- | --- | --- | --- |
+| Necklace | `POST /s2s/v2.0/task/2d-vto/necklace` | `GET .../necklace/{task_id}` | selfie (face + neck visible) | 1 unit |
+| Earrings | `POST /s2s/v2.0/task/2d-vto/earring` | `GET .../earring/{task_id}` | selfie (face + ears visible) | 1 unit (2 stacked) |
+| Bracelet | `POST /s2s/v2.0/task/2d-vto/bracelet` | `GET .../bracelet/{task_id}` | wrist photo | 1 unit (2 stacked) |
+| Ring | `POST /s2s/v2.0/task/2d-vto/ring` | `GET .../ring/{task_id}` | hand photo (back of hand, all 5 fingers) | 1 unit (2 stacked) |
+| Watch | `POST /s2s/v2.0/task/2d-vto/watch` | `GET .../watch/{task_id}` | wrist photo | 1 unit |
+
+All five share the same file upload step and request body shape. The request body is an
+`anyOf` in YouCam's spec (flat `src_file_id`/`ref_file_ids`, or a nested
+`source_info: { name }` / `object_infos: [{ name }]` shape, where `name` is a file ID or
+public URL) — but live testing found the endpoint's validator error messages flip
+between demanding one shape or the other depending on which one you send, never
+confirming either alone is accepted. [src/lib/youcam.ts](src/lib/youcam.ts)'s
+`createJewelryTask` sends **all of the documented field names at once** (matching the
+docs' own curl example, which also sends both), which is what actually got a live
+necklace try-on to succeed end to end.
+
+The result is a flat `{ url }` (same shape as Clothes VTO, valid ~2 hours), downloaded
+server-side and returned to the browser as a base64 `data:` URL, same as Clothes VTO.
+
+If a selected product type isn't one of the 6 above, the UI simply doesn't offer it, no
+request is ever sent to Clothes VTO for jewelry, which is what caused the original bug
+this feature fixes.
 
 ## Skin AI APIs
 
@@ -145,6 +176,8 @@ Mocks are for pitching only — never for posting as final content:
 
 - Next.js (App Router) + TypeScript + Tailwind CSS
 - YouCam Enterprise Clothes VTO v4 API (server-only)
+- YouCam Enterprise Jewelry & Watch Virtual Try-On: necklace, earring, bracelet, ring,
+  watch (server-only)
 - YouCam Enterprise Skin AI: AI Skin Analysis + AI Facial Color Tones Analyzer (server-only)
 - Gemini API (`@google/genai`) for the concept agent
 - HTML canvas for watermarking and the pitch-board PNG export
@@ -252,6 +285,9 @@ times).
 
 - [ ] Landing page (full view, showing the headline + safeguards row)
 - [ ] Creator flow: empty state with both upload dropzones visible
+- [ ] Creator flow: Product type selector, showing all 6 options and the photo hint
+      changing when a jewelry/watch type is picked
+- [ ] Creator flow: finished pitch board for a jewelry product type (e.g. Necklace)
 - [ ] Creator flow: loading state ("Building your concept mock…")
 - [ ] Creator flow: finished pitch board — watermarked try-on image + hooks + shot list
       + pitch email, all visible

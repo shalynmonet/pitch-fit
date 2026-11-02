@@ -5,7 +5,14 @@ import SiteHeader from "@/components/SiteHeader";
 import ImageDropzone from "@/components/ImageDropzone";
 import BrandResultCard from "@/components/BrandResultCard";
 import LoadingNote from "@/components/LoadingNote";
-import { GARMENT_CATEGORIES, type GarmentCategory } from "@/lib/types";
+import {
+  GARMENT_CATEGORIES,
+  PRODUCT_TYPES,
+  PRODUCT_TYPE_PHOTO,
+  PRODUCT_TYPE_PRODUCT_PHOTO_HINT,
+  type GarmentCategory,
+  type ProductType,
+} from "@/lib/types";
 import type { ShadeMatch } from "@/lib/shade";
 import { FOCUS_METRICS, type SkinStrength } from "@/lib/skinStrengths";
 
@@ -28,6 +35,7 @@ interface CreatorResult {
 export default function BrandPage() {
   const [product, setProduct] = useState<File | null>(null);
   const [creators, setCreators] = useState<(File | null)[]>([null, null, null]);
+  const [productType, setProductType] = useState<ProductType>("clothing");
   const [garmentCategory, setGarmentCategory] = useState<GarmentCategory>("upper_body");
   const [compareSkinProfiles, setCompareSkinProfiles] = useState(false);
   const [consentChecked, setConsentChecked] = useState(false);
@@ -104,15 +112,18 @@ export default function BrandPage() {
         try {
           const form = new FormData();
           form.set("selfie", creatorFile);
-          form.set("garment", product);
-          form.set("garmentCategory", garmentCategory);
+          form.set("product", product);
+          form.set("productType", productType);
+          if (productType === "clothing") {
+            form.set("garmentCategory", garmentCategory);
+          }
 
           const [vtoRes, skinProfile] = await Promise.all([
             fetch("/api/vto", { method: "POST", body: form }),
             compareSkinProfiles ? fetchSkinProfile(creatorFile) : Promise.resolve(null),
           ]);
           const json = await vtoRes.json();
-          if (!vtoRes.ok) throw new Error(json.error ?? "Try-on failed");
+          if (!vtoRes.ok) throw new Error(friendlyVtoError(json, productType));
           return {
             label: `Creator ${i + 1}`,
             status: "done" as const,
@@ -204,30 +215,59 @@ export default function BrandPage() {
 
         {!results && (
           <div className="mt-10 flex flex-col gap-8">
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-medium uppercase tracking-wide text-ink-soft">
+                Product type
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {PRODUCT_TYPES.map((p) => (
+                  <button
+                    key={p.value}
+                    type="button"
+                    onClick={() => setProductType(p.value)}
+                    className={`border px-4 py-2 text-sm transition-colors ${
+                      productType === p.value
+                        ? "border-ink bg-ink text-paper"
+                        : "border-line text-ink-soft hover:border-ink hover:text-ink"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </label>
+
             <div className="max-w-xs">
-              <ImageDropzone label="Product photo" hint="Front-facing, one item" file={product} onChange={setProduct} />
+              <ImageDropzone
+                label="Product photo"
+                hint={PRODUCT_TYPE_PRODUCT_PHOTO_HINT[productType]}
+                file={product}
+                onChange={setProduct}
+              />
             </div>
 
-            <label className="flex max-w-xs flex-col gap-2">
-              <span className="text-sm font-medium uppercase tracking-wide text-ink-soft">
-                Garment placement
-              </span>
-              <select
-                value={garmentCategory}
-                onChange={(e) => setGarmentCategory(e.target.value as GarmentCategory)}
-                className="border border-line bg-white px-4 py-3 text-sm outline-none focus:border-ink"
-              >
-                {GARMENT_CATEGORIES.map((g) => (
-                  <option key={g.value} value={g.value}>
-                    {g.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {productType === "clothing" && (
+              <label className="flex max-w-xs flex-col gap-2">
+                <span className="text-sm font-medium uppercase tracking-wide text-ink-soft">
+                  Garment placement
+                </span>
+                <select
+                  value={garmentCategory}
+                  onChange={(e) => setGarmentCategory(e.target.value as GarmentCategory)}
+                  className="border border-line bg-white px-4 py-3 text-sm outline-none focus:border-ink"
+                >
+                  {GARMENT_CATEGORIES.map((g) => (
+                    <option key={g.value} value={g.value}>
+                      {g.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
 
             <div>
               <span className="text-sm font-medium uppercase tracking-wide text-ink-soft">
-                Creator photos (up to {MAX_CREATORS})
+                Creator photos (up to {MAX_CREATORS}), {PRODUCT_TYPE_PHOTO[productType].hint.toLowerCase()}
               </span>
               <div className="mt-3 grid grid-cols-1 gap-6 sm:grid-cols-3">
                 {creators.map((c, i) => (
@@ -299,6 +339,37 @@ export default function BrandPage() {
       </main>
     </div>
   );
+}
+
+function friendlyVtoError(json: { error?: string; code?: string }, productType: ProductType): string {
+  const code = json.code ?? "";
+  const photo = PRODUCT_TYPE_PHOTO[productType];
+  if (code === "timeout") {
+    return "The try-on took longer than expected. Please try again.";
+  }
+  if (
+    code === "error_pose" ||
+    code === "error_below_min_image_size" ||
+    code === "error_no_face" ||
+    code === "PHOTO_DETECTION_FAIL" ||
+    code === "INPUT_MAIN_IMAGE_EMPTY"
+  ) {
+    return `We couldn't detect a clear ${photo.noun}. Try a photo with ${photo.hint.toLowerCase()}.`;
+  }
+  if (
+    code === "error_invalid_ref" ||
+    code === "error_apply_region_mismatch" ||
+    code === "OBJECT_DETECTION_FAIL"
+  ) {
+    return "The product photo doesn't look like a clear shot of the item. Try a different image.";
+  }
+  if (code === "exceed_max_filesize") {
+    return "One of the images is too large. Please use a photo under 10MB.";
+  }
+  if (code === "CreditInsufficiency") {
+    return "We're out of YouCam credits for now. Please try again later.";
+  }
+  return json.error ?? "Try-on failed";
 }
 
 function friendlySkinApiError(json: { error?: string; code?: string }, feature: string): string {

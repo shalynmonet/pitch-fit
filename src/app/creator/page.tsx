@@ -5,7 +5,17 @@ import SiteHeader from "@/components/SiteHeader";
 import ImageDropzone from "@/components/ImageDropzone";
 import LoadingNote from "@/components/LoadingNote";
 import PitchBoard from "@/components/PitchBoard";
-import { NICHES, GARMENT_CATEGORIES, type Niche, type GarmentCategory, type Concept } from "@/lib/types";
+import {
+  NICHES,
+  GARMENT_CATEGORIES,
+  PRODUCT_TYPES,
+  PRODUCT_TYPE_PHOTO,
+  PRODUCT_TYPE_PRODUCT_PHOTO_HINT,
+  type Niche,
+  type GarmentCategory,
+  type ProductType,
+  type Concept,
+} from "@/lib/types";
 import type { ShadeMatch } from "@/lib/shade";
 import type { SkinStrength } from "@/lib/skinStrengths";
 
@@ -15,10 +25,11 @@ const SKIN_AI_DISCLAIMER = "Cosmetic skin analysis, not medical advice. Results 
 
 export default function CreatorPage() {
   const [selfie, setSelfie] = useState<File | null>(null);
-  const [garment, setGarment] = useState<File | null>(null);
+  const [productImage, setProductImage] = useState<File | null>(null);
   const [productName, setProductName] = useState("");
   const [productDescription, setProductDescription] = useState("");
   const [niche, setNiche] = useState<Niche>("travel");
+  const [productType, setProductType] = useState<ProductType>("clothing");
   const [garmentCategory, setGarmentCategory] = useState<GarmentCategory>("upper_body");
   const [beautyPitch, setBeautyPitch] = useState(false);
 
@@ -31,10 +42,10 @@ export default function CreatorPage() {
   const [skinStrengths, setSkinStrengths] = useState<SkinStrength[] | null>(null);
   const [skinStrengthsNote, setSkinStrengthsNote] = useState<string | null>(null);
 
-  const canGenerate = selfie && garment && productName.trim() && productDescription.trim();
+  const canGenerate = selfie && productImage && productName.trim() && productDescription.trim();
 
   async function handleGenerate() {
-    if (!selfie || !garment) return;
+    if (!selfie || !productImage) return;
     setStatus("loading");
     setError(null);
     setShadeMatch(null);
@@ -45,8 +56,11 @@ export default function CreatorPage() {
     try {
       const vtoForm = new FormData();
       vtoForm.set("selfie", selfie);
-      vtoForm.set("garment", garment);
-      vtoForm.set("garmentCategory", garmentCategory);
+      vtoForm.set("product", productImage);
+      vtoForm.set("productType", productType);
+      if (productType === "clothing") {
+        vtoForm.set("garmentCategory", garmentCategory);
+      }
 
       const skinToneForm = new FormData();
       skinToneForm.set("selfie", selfie);
@@ -89,7 +103,7 @@ export default function CreatorPage() {
       const conceptJson = await conceptRes.json();
 
       if (!vtoRes.ok) {
-        throw new Error(friendlyVtoError(vtoJson));
+        throw new Error(friendlyVtoError(vtoJson, productType));
       }
       if (!conceptRes.ok) {
         throw new Error(conceptJson.error ?? "Couldn't write the pitch concept. Please try again.");
@@ -142,7 +156,7 @@ export default function CreatorPage() {
         {status === "loading" && (
           <LoadingNote
             label="Building your concept mock…"
-            detail="We're rendering the garment on your photo and writing the pitch at the same time."
+            detail="We're rendering the product on your photo and writing the pitch at the same time."
           />
         )}
 
@@ -169,9 +183,41 @@ export default function CreatorPage() {
 
         {(status === "idle" || status === "error") && (
           <div className="mt-10 flex flex-col gap-8">
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-medium uppercase tracking-wide text-ink-soft">
+                Product type
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {PRODUCT_TYPES.map((p) => (
+                  <button
+                    key={p.value}
+                    type="button"
+                    onClick={() => setProductType(p.value)}
+                    className={`border px-4 py-2 text-sm transition-colors ${
+                      productType === p.value
+                        ? "border-ink bg-ink text-paper"
+                        : "border-line text-ink-soft hover:border-ink hover:text-ink"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </label>
+
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-              <ImageDropzone label="Your selfie" hint="Shoulders + face visible, facing forward" file={selfie} onChange={setSelfie} />
-              <ImageDropzone label="Product photo" hint="Front-facing, one item, no mockup text" file={garment} onChange={setGarment} />
+              <ImageDropzone
+                label={`Your ${PRODUCT_TYPE_PHOTO[productType].noun}`}
+                hint={PRODUCT_TYPE_PHOTO[productType].hint}
+                file={selfie}
+                onChange={setSelfie}
+              />
+              <ImageDropzone
+                label="Product photo"
+                hint={PRODUCT_TYPE_PRODUCT_PHOTO_HINT[productType]}
+                file={productImage}
+                onChange={setProductImage}
+              />
             </div>
 
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
@@ -187,22 +233,24 @@ export default function CreatorPage() {
                 />
               </label>
 
-              <label className="flex flex-col gap-2">
-                <span className="text-sm font-medium uppercase tracking-wide text-ink-soft">
-                  Garment placement
-                </span>
-                <select
-                  value={garmentCategory}
-                  onChange={(e) => setGarmentCategory(e.target.value as GarmentCategory)}
-                  className="border border-line bg-white px-4 py-3 text-sm outline-none focus:border-ink"
-                >
-                  {GARMENT_CATEGORIES.map((g) => (
-                    <option key={g.value} value={g.value}>
-                      {g.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {productType === "clothing" && (
+                <label className="flex flex-col gap-2">
+                  <span className="text-sm font-medium uppercase tracking-wide text-ink-soft">
+                    Garment placement
+                  </span>
+                  <select
+                    value={garmentCategory}
+                    onChange={(e) => setGarmentCategory(e.target.value as GarmentCategory)}
+                    className="border border-line bg-white px-4 py-3 text-sm outline-none focus:border-ink"
+                  >
+                    {GARMENT_CATEGORIES.map((g) => (
+                      <option key={g.value} value={g.value}>
+                        {g.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
             </div>
 
             <label className="flex flex-col gap-2">
@@ -290,16 +338,27 @@ export default function CreatorPage() {
   );
 }
 
-function friendlyVtoError(json: { error?: string; code?: string }): string {
+function friendlyVtoError(json: { error?: string; code?: string }, productType: ProductType): string {
   const code = json.code ?? "";
+  const photo = PRODUCT_TYPE_PHOTO[productType];
   if (code === "timeout") {
     return "The try-on took longer than expected. Please try again.";
   }
-  if (code === "error_pose" || code === "error_below_min_image_size") {
-    return "We couldn't detect a clear pose in your selfie. Try a photo with your shoulders and face visible, facing forward.";
+  if (
+    code === "error_pose" ||
+    code === "error_below_min_image_size" ||
+    code === "error_no_face" ||
+    code === "PHOTO_DETECTION_FAIL" ||
+    code === "INPUT_MAIN_IMAGE_EMPTY"
+  ) {
+    return `We couldn't detect a clear ${photo.noun}. Try a photo with ${photo.hint.toLowerCase()}.`;
   }
-  if (code === "error_invalid_ref" || code === "error_apply_region_mismatch") {
-    return "The product photo doesn't look like a clear, front-facing garment shot. Try a different image.";
+  if (
+    code === "error_invalid_ref" ||
+    code === "error_apply_region_mismatch" ||
+    code === "OBJECT_DETECTION_FAIL"
+  ) {
+    return "The product photo doesn't look like a clear shot of the item. Try a different image.";
   }
   if (code === "exceed_max_filesize") {
     return "One of the images is too large. Please use a photo under 10MB.";

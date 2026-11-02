@@ -8,6 +8,43 @@ export type GarmentCategory =
   | "outer"
   | "auto";
 
+export type JewelryType = "necklace" | "earring" | "bracelet" | "ring" | "watch";
+export type ProductType = "clothing" | JewelryType;
+
+export const JEWELRY_TYPES: JewelryType[] = ["necklace", "earring", "bracelet", "ring", "watch"];
+
+export function isJewelryType(type: ProductType): type is JewelryType {
+  return type !== "clothing";
+}
+
+export const PRODUCT_TYPES: { value: ProductType; label: string }[] = [
+  { value: "clothing", label: "Clothing" },
+  { value: "necklace", label: "Necklace" },
+  { value: "earring", label: "Earrings" },
+  { value: "bracelet", label: "Bracelet" },
+  { value: "ring", label: "Ring" },
+  { value: "watch", label: "Watch" },
+];
+
+/** What kind of photo of the wearer each product type needs, and how to describe it. */
+export const PRODUCT_TYPE_PHOTO: Record<ProductType, { noun: string; hint: string }> = {
+  clothing: { noun: "selfie", hint: "Shoulders + face visible, facing forward" },
+  necklace: { noun: "selfie", hint: "Face and neck visible, facing forward" },
+  earring: { noun: "selfie", hint: "Face and ears visible, facing forward" },
+  bracelet: { noun: "wrist photo", hint: "Wrist clearly visible, no sleeve covering it" },
+  ring: { noun: "hand photo", hint: "Back of hand visible, all 5 fingers shown, nothing blocking it" },
+  watch: { noun: "wrist photo", hint: "Wrist clearly visible, no sleeve covering it" },
+};
+
+export const PRODUCT_TYPE_PRODUCT_PHOTO_HINT: Record<ProductType, string> = {
+  clothing: "Front-facing, one item, no mockup text",
+  necklace: "Front-facing product shot on a plain background",
+  earring: "Front-facing product shot on a plain background",
+  bracelet: "Front-facing product shot on a plain background",
+  ring: "Product shot at a three-quarter angle, on a plain background",
+  watch: "Front-facing product shot on a plain background",
+};
+
 export interface Concept {
   hooks: string[];
   shotList: string[];

@@ -103,6 +103,74 @@ export async function pollClothTask(
   throw new YouCamError("VTO task timed out", "timeout");
 }
 
+export type JewelryType = "necklace" | "earring" | "bracelet" | "ring" | "watch";
+
+export async function createJewelryTask(
+  type: JewelryType,
+  srcFileId: string,
+  refFileId: string
+): Promise<string> {
+  // The live anyOf validator on this endpoint has been unreliable about which branch
+  // it reports as missing, so every documented field name is sent at once (same
+  // fields the docs' own curl example sends together): the flat ID fields, plus the
+  // nested source_info/object_infos shape, all pointing at the same two file IDs.
+  const res = await fetch(`${BASE_URL}/s2s/v2.0/task/2d-vto/${type}`, {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({
+      src_file_id: srcFileId,
+      ref_file_ids: [refFileId],
+      source_info: { name: srcFileId },
+      object_infos: [{ name: refFileId }],
+    }),
+  });
+  const json = await parseJsonOrThrow(res, `YouCam ${type} task creation`);
+  return json.data.task_id;
+}
+
+export async function pollJewelryTask(
+  type: JewelryType,
+  taskId: string,
+  { timeoutMs = 45000, intervalMs = 3000 }: { timeoutMs?: number; intervalMs?: number } = {}
+): Promise<string> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const res = await fetch(`${BASE_URL}/s2s/v2.0/task/2d-vto/${type}/${taskId}`, {
+      headers: authHeaders({ "Content-Type": "application/json" }),
+    });
+    const json = await parseJsonOrThrow(res, `YouCam ${type} task poll`);
+    const status = json.data.task_status;
+
+    if (status === "success") return json.data.results.url;
+    if (status === "error") {
+      throw new YouCamError(json.data.error_message ?? `${type} try-on failed`, json.data.error);
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new YouCamError(`${type} try-on timed out`, "timeout");
+}
+
+/** Full pipeline: upload the wearer's photo + product photo, run jewelry/watch try-on, return a data: URL. */
+export async function runJewelryVto(
+  type: JewelryType,
+  wearerPhoto: { bytes: Buffer; fileName: string; contentType: string },
+  product: { bytes: Buffer; fileName: string; contentType: string }
+): Promise<string> {
+  const [srcFileId, refFileId] = await Promise.all([
+    uploadImage(wearerPhoto.bytes, wearerPhoto.fileName, wearerPhoto.contentType),
+    uploadImage(product.bytes, product.fileName, product.contentType),
+  ]);
+
+  const taskId = await createJewelryTask(type, srcFileId, refFileId);
+  const resultUrl = await pollJewelryTask(type, taskId);
+
+  const imgRes = await fetch(resultUrl);
+  if (!imgRes.ok) throw new YouCamError(`Failed to download ${type} try-on result (${imgRes.status})`);
+  const buf = Buffer.from(await imgRes.arrayBuffer());
+  const mime = imgRes.headers.get("content-type") ?? "image/jpeg";
+  return `data:${mime};base64,${buf.toString("base64")}`;
+}
+
 export interface SkinMetricScore {
   type: string;
   uiScore: number;
