@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const scores = await runSkinAnalysis({
+    const { scores, reframed } = await runSkinAnalysis({
       bytes: Buffer.from(await selfieFile.arrayBuffer()),
       fileName: selfieFile.name || "selfie.jpg",
       contentType: selfieFile.type || "image/jpeg",
@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       strengths: topSkinStrengths(scores),
       scores: scores.map((s) => ({ type: s.type, uiScore: s.uiScore })),
+      reframed,
     });
   } catch (err) {
     if (err instanceof YouCamError) {

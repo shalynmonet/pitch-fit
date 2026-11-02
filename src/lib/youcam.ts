@@ -1,6 +1,8 @@
 // Server-only client for the YouCam Enterprise (YCE) Clothes VTO v4 API.
 // Never import this from client components — it uses YOUCAM_API_KEY.
 
+import sharp from "sharp";
+
 const BASE_URL = "https://yce-api-01.makeupar.com";
 
 export type GarmentCategory =
@@ -171,6 +173,62 @@ export async function runJewelryVto(
   return `data:${mime};base64,${buf.toString("base64")}`;
 }
 
+type Photo = { bytes: Buffer; fileName: string; contentType: string };
+
+// How much to narrow the horizontal crop on each reframe attempt, applied to the
+// *original* photo each time (not compounded), centered on the horizontal midpoint.
+const REFRAME_WIDTH_FRACTIONS = [0.7, 0.55];
+
+/**
+ * Crops a photo to a horizontally-centered strip at `fraction` of its original
+ * width, keeping the full height. This is a framing fix only — it narrows the
+ * field of view around the (assumed centered) subject so their face takes up more
+ * of the width, without guessing where the face actually is. It can't fix a head
+ * tilt or rotation, only "too much background on either side."
+ */
+async function cropCenterWidth(bytes: Buffer, fraction: number): Promise<Buffer> {
+  const image = sharp(bytes);
+  const meta = await image.metadata();
+  if (!meta.width || !meta.height) return bytes;
+  const width = Math.max(1, Math.round(meta.width * fraction));
+  const left = Math.max(0, Math.round((meta.width - width) / 2));
+  return image.extract({ left, top: 0, width, height: meta.height }).jpeg({ quality: 92 }).toBuffer();
+}
+
+/**
+ * Some Skin AI failures (face too small / off-center) are pure framing problems
+ * that a tighter, centered horizontal crop can fix using the same photo — unlike a
+ * head-angle problem, which cropping can't fix and needs a new photo. On an error
+ * whose code is in `reframableCodes`, this retries `attempt` with the photo
+ * progressively narrowed (per REFRAME_WIDTH_FRACTIONS), stopping at the first
+ * success. Any other error, or running out of attempts, rethrows immediately.
+ */
+async function withFaceReframe<T>(
+  photo: Photo,
+  reframableCodes: ReadonlySet<string>,
+  attempt: (photo: Photo) => Promise<T>
+): Promise<{ result: T; reframed: boolean }> {
+  let lastErr: unknown;
+  for (let i = 0; i <= REFRAME_WIDTH_FRACTIONS.length; i++) {
+    const current: Photo =
+      i === 0
+        ? photo
+        : {
+            bytes: await cropCenterWidth(photo.bytes, REFRAME_WIDTH_FRACTIONS[i - 1]),
+            fileName: photo.fileName,
+            contentType: "image/jpeg",
+          };
+    try {
+      return { result: await attempt(current), reframed: i > 0 };
+    } catch (err) {
+      lastErr = err;
+      const code = err instanceof YouCamError ? err.code : undefined;
+      if (!code || !reframableCodes.has(code)) throw err;
+    }
+  }
+  throw lastErr;
+}
+
 export interface SkinMetricScore {
   type: string;
   uiScore: number;
@@ -232,15 +290,33 @@ export async function pollSkinAnalysisTask(
   throw new YouCamError("Skin analysis timed out", "timeout");
 }
 
+// These two codes mean "the face is there but framed too small / off-center" —
+// fixable by narrowing the crop. Angle/rotation codes are deliberately excluded:
+// no amount of cropping fixes a tilted head, so those surface as a normal error.
+const SKIN_ANALYSIS_REFRAMABLE_CODES = new Set(["error_src_face_too_small", "error_src_face_out_of_bound"]);
+
+export interface SkinAnalysisResult {
+  scores: SkinMetricScore[];
+  /** True if the photo had to be auto-cropped tighter to pass YouCam's framing check. */
+  reframed: boolean;
+}
+
 /** Full pipeline: upload a selfie and run AI Skin Analysis, returning per-metric scores. */
 export async function runSkinAnalysis(selfie: {
   bytes: Buffer;
   fileName: string;
   contentType: string;
-}): Promise<SkinMetricScore[]> {
-  const fileId = await uploadImage(selfie.bytes, selfie.fileName, selfie.contentType);
-  const taskId = await createSkinAnalysisTask(fileId);
-  return pollSkinAnalysisTask(taskId);
+}): Promise<SkinAnalysisResult> {
+  const { result: scores, reframed } = await withFaceReframe(
+    selfie,
+    SKIN_ANALYSIS_REFRAMABLE_CODES,
+    async (photo) => {
+      const fileId = await uploadImage(photo.bytes, photo.fileName, photo.contentType);
+      const taskId = await createSkinAnalysisTask(fileId);
+      return pollSkinAnalysisTask(taskId);
+    }
+  );
+  return { scores, reframed };
 }
 
 export interface SkinToneResult {
@@ -295,15 +371,37 @@ export async function pollSkinToneTask(
   throw new YouCamError("Skin tone analysis timed out", "timeout");
 }
 
+// Position codes mean the face is framed too small / off-center — fixable by
+// narrowing the crop. Angle/rotation/tilt codes are deliberately excluded: cropping
+// can't fix a tilted or turned head, so those surface as a normal error.
+const SKIN_TONE_REFRAMABLE_CODES = new Set([
+  "error_face_position_too_small",
+  "error_face_position_invalid",
+  "error_face_position_out_of_boundary",
+]);
+
+export interface SkinToneAnalysisResult {
+  skinTone: SkinToneResult;
+  /** True if the photo had to be auto-cropped tighter to pass YouCam's framing check. */
+  reframed: boolean;
+}
+
 /** Full pipeline: upload a selfie and run AI Facial Color Tones Analyzer on it. */
 export async function runSkinToneAnalysis(selfie: {
   bytes: Buffer;
   fileName: string;
   contentType: string;
-}): Promise<SkinToneResult> {
-  const fileId = await uploadImage(selfie.bytes, selfie.fileName, selfie.contentType);
-  const taskId = await createSkinToneTask(fileId);
-  return pollSkinToneTask(taskId);
+}): Promise<SkinToneAnalysisResult> {
+  const { result: skinTone, reframed } = await withFaceReframe(
+    selfie,
+    SKIN_TONE_REFRAMABLE_CODES,
+    async (photo) => {
+      const fileId = await uploadImage(photo.bytes, photo.fileName, photo.contentType);
+      const taskId = await createSkinToneTask(fileId);
+      return pollSkinToneTask(taskId);
+    }
+  );
+  return { skinTone, reframed };
 }
 
 /** Full pipeline: upload selfie + garment, run try-on, return a data: URL of the result. */

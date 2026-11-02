@@ -31,6 +31,7 @@ interface CreatorResult {
   skinScores?: { type: string; uiScore: number }[] | null;
   shadeMatch?: ShadeMatch | null;
   shadeNote?: string | null;
+  beautyPhotoReframed?: boolean;
 }
 
 export default function BrandPage() {
@@ -91,13 +92,14 @@ export default function BrandPage() {
 
     const profile: Pick<
       CreatorResult,
-      "skinStrengths" | "skinStrengthsNote" | "skinScores" | "shadeMatch" | "shadeNote"
+      "skinStrengths" | "skinStrengthsNote" | "skinScores" | "shadeMatch" | "shadeNote" | "beautyPhotoReframed"
     > = {};
 
     if (skinAnalysisRes.ok) {
       const json = await skinAnalysisRes.json();
       profile.skinStrengths = json.strengths ?? null;
       profile.skinScores = json.scores ?? null;
+      if (json.reframed) profile.beautyPhotoReframed = true;
     } else {
       const json = await skinAnalysisRes.json().catch(() => ({}));
       profile.skinStrengthsNote = friendlySkinApiError(json, "Skin Strengths");
@@ -107,6 +109,7 @@ export default function BrandPage() {
       const json = await skinToneRes.json();
       profile.shadeMatch = json.shadeMatch ?? null;
       if (!json.shadeMatch) profile.shadeNote = "Couldn't detect a shade match for this photo.";
+      if (json.reframed) profile.beautyPhotoReframed = true;
     } else {
       const json = await skinToneRes.json().catch(() => ({}));
       profile.shadeNote = friendlySkinApiError(json, "Shade Match");

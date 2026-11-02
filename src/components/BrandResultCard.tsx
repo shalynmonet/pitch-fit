@@ -18,6 +18,7 @@ interface BrandResultCardProps {
   shadeNote?: string | null;
   focusMetricLabel?: string | null;
   isStrongestForFocus?: boolean;
+  beautyPhotoReframed?: boolean;
 }
 
 export default function BrandResultCard({
@@ -31,6 +32,7 @@ export default function BrandResultCard({
   shadeNote,
   focusMetricLabel,
   isStrongestForFocus,
+  beautyPhotoReframed,
 }: BrandResultCardProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [ready, setReady] = useState(false);
@@ -127,6 +129,11 @@ export default function BrandResultCard({
                 <p className="mt-1 text-ink-soft">{shadeNote}</p>
               )}
             </div>
+          )}
+          {beautyPhotoReframed && (
+            <p className="italic text-ink-soft/70">
+              We auto-cropped the face photo tighter to get a clean read.
+            </p>
           )}
           <p className="text-ink-soft/70">{SKIN_AI_DISCLAIMER}</p>
         </div>

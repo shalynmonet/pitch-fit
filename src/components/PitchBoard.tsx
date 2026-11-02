@@ -17,6 +17,7 @@ interface PitchBoardProps {
   shadeNote?: string | null;
   skinStrengths?: SkinStrength[] | null;
   skinStrengthsNote?: string | null;
+  beautyPhotoReframed?: boolean;
 }
 
 export default function PitchBoard({
@@ -28,6 +29,7 @@ export default function PitchBoard({
   shadeNote,
   skinStrengths,
   skinStrengthsNote,
+  beautyPhotoReframed,
 }: PitchBoardProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [copied, setCopied] = useState(false);
@@ -138,6 +140,11 @@ export default function PitchBoard({
               </div>
             )}
 
+            {beautyPhotoReframed && (
+              <p className="mt-3 text-xs italic text-ink-soft/70">
+                We auto-cropped your face photo tighter to get a clean read.
+              </p>
+            )}
             <p className="mt-3 text-xs text-ink-soft/70">{SKIN_AI_DISCLAIMER}</p>
           </section>
         )}

@@ -26,19 +26,20 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const result = await runSkinToneAnalysis({
+    const { skinTone, reframed } = await runSkinToneAnalysis({
       bytes: Buffer.from(await selfieFile.arrayBuffer()),
       fileName: selfieFile.name || "selfie.jpg",
       contentType: selfieFile.type || "image/jpeg",
     });
 
-    const shadeMatch = deriveShadeMatch(result.skinColorHex);
+    const shadeMatch = deriveShadeMatch(skinTone.skinColorHex);
 
     return NextResponse.json({
-      skinColorHex: result.skinColorHex,
-      eyeColorName: result.eyeColorName,
-      hairColorName: result.hairColorName,
+      skinColorHex: skinTone.skinColorHex,
+      eyeColorName: skinTone.eyeColorName,
+      hairColorName: skinTone.hairColorName,
       shadeMatch,
+      reframed,
     });
   } catch (err) {
     if (err instanceof YouCamError) {

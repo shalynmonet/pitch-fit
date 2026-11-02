@@ -43,6 +43,7 @@ export default function CreatorPage() {
   const [shadeNote, setShadeNote] = useState<string | null>(null);
   const [skinStrengths, setSkinStrengths] = useState<SkinStrength[] | null>(null);
   const [skinStrengthsNote, setSkinStrengthsNote] = useState<string | null>(null);
+  const [beautyPhotoReframed, setBeautyPhotoReframed] = useState(false);
 
   const canGenerate =
     selfie &&
@@ -59,6 +60,7 @@ export default function CreatorPage() {
     setShadeNote(null);
     setSkinStrengths(null);
     setSkinStrengthsNote(null);
+    setBeautyPhotoReframed(false);
 
     try {
       const vtoForm = new FormData();
@@ -97,6 +99,7 @@ export default function CreatorPage() {
           const skinAnalysisJson = await skinAnalysisRes.json();
           strengths = skinAnalysisJson.strengths ?? null;
           setSkinStrengths(strengths);
+          if (skinAnalysisJson.reframed) setBeautyPhotoReframed(true);
         } else {
           const skinAnalysisJson = await skinAnalysisRes.json().catch(() => ({}));
           setSkinStrengthsNote(friendlySkinAnalysisError(skinAnalysisJson));
@@ -131,6 +134,7 @@ export default function CreatorPage() {
           if (!skinToneJson.shadeMatch) {
             setShadeNote("Couldn't detect a shade match for this photo.");
           }
+          if (skinToneJson.reframed) setBeautyPhotoReframed(true);
         } else {
           const skinToneJson = await skinToneRes.json().catch(() => ({}));
           setShadeNote(friendlySkinToneError(skinToneJson));
@@ -153,6 +157,7 @@ export default function CreatorPage() {
     setShadeNote(null);
     setSkinStrengths(null);
     setSkinStrengthsNote(null);
+    setBeautyPhotoReframed(false);
   }
 
   return (
@@ -182,6 +187,7 @@ export default function CreatorPage() {
               shadeNote={shadeNote}
               skinStrengths={skinStrengths}
               skinStrengthsNote={skinStrengthsNote}
+              beautyPhotoReframed={beautyPhotoReframed}
             />
             <button
               type="button"
